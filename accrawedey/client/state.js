@@ -1,0 +1,73 @@
+// =====================================================
+// SHARED STATE + NETWORK. The server decides everything that matters (money, land, who owns what).
+// This file keeps a copy of the world, previews actions with the same shared rules, and sends them.
+// =====================================================
+const R = Rules;
+const { N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, ROAD, LAND, CATALOG, TIERS, CIVIC, ZONES, key, fmt, rentDaily, leaseCost, projectDay, dayYield, clamp } = R;
+const fmtK = n => n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + 'M' : n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(Math.round(n));
+
+let world = R.makeWorld();
+const me = { id: 0, name: '', money: 0, t: 0, born: 0, jail: null };
+let timeOff = 0;                                   // server clock minus this device's clock: players cannot gain time by changing their clock
+const now = () => Date.now() + timeOff;
+let online = 1, roadCount = 0, TYPES = [], zoneView = false;
+const model = { get grid() { return world.grid; }, get land() { return world.land; }, get money() { return me.money; } };   // read-only view used by the renderer
+const landPrice = (x, y) => R.landPrice(world, x, y);
+const nearRoad = (x, y) => R.nearRoad(world, x, y);
+const landOf = (x, y) => world.land[key(x, y)] || null;
+const nameOf = id => world.names[id] || 'Player';
+let C = null;
+const dirty = () => { C = null; };
+const cen = () => C || (C = R.census(world, me.id));
+const plan = (x, y, T) => R.plan(world, me, T, x, y, cen(), now());
+
+// ---------- network ----------
+let ws = null, wantOpen = true, started = false, reqId = 0;
+const pending = new Map(), handlers = {};
+const wsURL = () => { const q = new URLSearchParams(location.search).get('server'); return (location.protocol === 'https:' ? 'wss://' : 'ws://') + (q || location.host); };
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+function sendMsg(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+function connect() {
+  try { ws = new WebSocket(wsURL()); } catch (e) { setTimeout(connect, 2000); return; }
+  ws.onopen = () => { handlers.status && handlers.status(true); sendMsg({ t: 'hello', token: store.get('cb-token') || undefined }); };
+  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (err) { return; } onMsg(m); };
+  ws.onclose = () => { for (const [, f] of pending) f({ ok: false, msg: 'Connection lost' }); pending.clear(); handlers.status && handlers.status(false); setTimeout(connect, 2000); };
+  ws.onerror = () => {};
+}
+function sendAct(x, y, tool) {
+  return new Promise(res => {
+    if (!ws || ws.readyState !== 1) return res({ ok: false, msg: 'Not connected to the city. Reconnecting...' });
+    const rid = ++reqId; pending.set(rid, res);
+    sendMsg({ t: 'act', tool, x, y, rid });
+    setTimeout(() => { if (pending.delete(rid)) res({ ok: false, msg: 'The city did not answer. Try again.' }); }, 6000);
+  });
+}
+function applyTile(tl, animate) {
+  const k = key(tl.x, tl.y), was = world.grid[tl.y][tl.x], g = TYPES[tl.g] || 'empty';
+  if (was === 'road') roadCount--; if (g === 'road') roadCount++;
+  world.grid[tl.y][tl.x] = g;
+  if (tl.L) R.setLand(world, k, tl.L); else R.delLand(world, k);
+  if (tl.c) world.cracked[k] = 1; else delete world.cracked[k];
+  if (animate && g !== was && g !== 'empty') handlers.born && handlers.born(k);
+}
+function onMsg(m) {
+  if (m.t === 'join') return handlers.join && handlers.join();
+  if (m.t === 'authErr') return handlers.authErr && handlers.authErr(m);
+  if (m.t === 'init') {
+    TYPES = m.world.types; world = R.makeWorld(); roadCount = 0;
+    for (let i = 0; i < N * N; i++) { const g = TYPES[m.world.grid[i]] || 'empty'; world.grid[(i / N) | 0][i % N] = g; if (g === 'road') roadCount++; }
+    world.land = {}; for (const k in m.world.land) world.land[k] = m.world.land[k];
+    world.cracked = m.world.cracked; world.names = m.world.names; world.jobs = m.world.jobs || {}; R.reindex(world); R.initCivic(world);
+    Object.assign(me, { id: m.you.id, name: m.you.name, money: m.you.money, t: m.you.ts, born: m.you.born, jail: m.you.jail });
+    timeOff = m.now - Date.now(); dirty();
+    if (m.token) store.set('cb-token', m.token); store.set('cb-name', m.you.name);
+    handlers.init && handlers.init(m);
+  } else if (m.t === 'res') { const f = pending.get(m.rid); pending.delete(m.rid); if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; } f && f(m); }
+  else if (m.t === 'tiles') { for (const tl of m.list) applyTile(tl, true); dirty(); handlers.changed && handlers.changed(); }
+  else if (m.t === 'you') { me.money = m.money; me.t = m.ts; me.jail = m.jail; if (m.now) timeOff = m.now - Date.now(); dirty(); }
+  else if (m.t === 'jobs') { for (const e of m.list) R.setJob(world, e.p, e.j); dirty(); handlers.changed && handlers.changed(); }
+  else if (m.t === 'name') world.names[m.id] = m.name;
+  else if (m.t === 'online') { online = m.n; handlers.online && handlers.online(); }
+  else if (m.t === 'notice') handlers.notice && handlers.notice(m);
+  else if (m.t === 'board') handlers.board && handlers.board(m);
+}
