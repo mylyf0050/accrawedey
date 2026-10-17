@@ -1,0 +1,20 @@
+{
+  "name": "shared-city",
+  "version": "1.0.0",
+  "description": "Shared multiplayer city builder (Accra)",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "build": "python3 client/build.py"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}
