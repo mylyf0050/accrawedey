@@ -10,6 +10,7 @@ let world = R.makeWorld();
 const me = { id: 0, name: '', money: 0, t: 0, born: 0, jail: null };
 let timeOff = 0;                                   // server clock minus this device's clock: players cannot gain time by changing their clock
 const now = () => Date.now() + timeOff;
+let election = { week: -1, endsAt: 0, mayor: null, cands: [] }, ballot = 0;
 let online = 1, roadCount = 0, TYPES = [], zoneView = false;
 const model = { get grid() { return world.grid; }, get land() { return world.land; }, get money() { return me.money; } };   // read-only view used by the renderer
 const landPrice = (x, y) => R.landPrice(world, x, y);
@@ -57,15 +58,21 @@ function onMsg(m) {
     TYPES = m.world.types; world = R.makeWorld(); roadCount = 0;
     for (let i = 0; i < N * N; i++) { const g = TYPES[m.world.grid[i]] || 'empty'; world.grid[(i / N) | 0][i % N] = g; if (g === 'road') roadCount++; }
     world.land = {}; for (const k in m.world.land) world.land[k] = m.world.land[k];
-    world.cracked = m.world.cracked; world.names = m.world.names; world.jobs = m.world.jobs || {}; R.reindex(world); R.initCivic(world);
-    Object.assign(me, { id: m.you.id, name: m.you.name, money: m.you.money, t: m.you.ts, born: m.you.born, jail: m.you.jail });
+    world.cracked = m.world.cracked; world.names = m.world.names; world.jobs = m.world.jobs || {}; world.companies = m.world.companies || {}; world.cars = m.world.cars || {}; R.reindex(world); R.initCivic(world);
+    Object.assign(me, { id: m.you.id, name: m.you.name, money: m.you.money, t: m.you.ts, born: m.you.born, jail: m.you.jail, fedUntil: m.you.fed });
     timeOff = m.now - Date.now(); dirty();
     if (m.token) store.set('cb-token', m.token); store.set('cb-name', m.you.name);
     handlers.init && handlers.init(m);
-  } else if (m.t === 'res') { const f = pending.get(m.rid); pending.delete(m.rid); if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; } f && f(m); }
+  } else if (m.t === 'res') { const f = pending.get(m.rid); pending.delete(m.rid); if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; if (m.you.fed !== undefined) me.fedUntil = m.you.fed; } f && f(m); }
   else if (m.t === 'tiles') { for (const tl of m.list) applyTile(tl, true); dirty(); handlers.changed && handlers.changed(); }
-  else if (m.t === 'you') { me.money = m.money; me.t = m.ts; me.jail = m.jail; if (m.now) timeOff = m.now - Date.now(); dirty(); }
+  else if (m.t === 'you') { me.money = m.money; me.t = m.ts; me.jail = m.jail; if (m.fed !== undefined) me.fedUntil = m.fed; if (m.now) timeOff = m.now - Date.now(); dirty(); }
   else if (m.t === 'jobs') { for (const e of m.list) R.setJob(world, e.p, e.j); dirty(); handlers.changed && handlers.changed(); }
+  else if (m.t === 'cars') { for (const e of m.list) { if (e.c) world.cars[e.p] = e.c; else delete world.cars[e.p]; } dirty(); handlers.changed && handlers.changed(); }
+  else if (m.t === 'company') { if (m.co) world.companies[m.id] = m.co; else delete world.companies[m.id]; dirty(); handlers.changed && handlers.changed(); }
+  else if (m.t === 'election') { election = m; handlers.panel && handlers.panel(); }
+  else if (m.t === 'ballot') { ballot = m.vote; handlers.panel && handlers.panel(); }
+  else if (m.t === 'companyRes' || m.t === 'electionRes') { if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; dirty(); } handlers.simple && handlers.simple(m); }
+  else if (m.t === 'giftRes') { if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; dirty(); } handlers.gift && handlers.gift(m); }
   else if (m.t === 'name') world.names[m.id] = m.name;
   else if (m.t === 'online') { online = m.n; handlers.online && handlers.online(); }
   else if (m.t === 'notice') handlers.notice && handlers.notice(m);

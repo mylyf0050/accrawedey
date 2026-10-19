@@ -17,3 +17,12 @@ Players sign up with a name and password (scrypt-hashed). Environment options: `
 
 ## Jobs and living costs
 Everyone pays `LIVING` (GH₵50/day). Players without a job earn the odd-jobs wage (GH₵60/day). Workplaces have staff slots (`jobs` in the catalog) and a daily salary (`sal`), paid by the owner while the building is open. City-run workplaces give newcomers entry-level jobs. If an owner runs out of money, or the building is sold, lost or its road breaks, the staff lose the job.
+
+## Accra flavour, dumsor, gifts
+New buildings: Chop Bar, Trotro Station (appended to the type list so older saved worlds still load). Dumsor: on about one evening in three the power is rationed 18:00 to midnight; shops, clubs, factories and other businesses earn 40% less (hospitals, police, prisons, airports and homes are exempt). Players can send each other GH₵10 to GH₵5,000 (accounts must be an hour old; env `GIFT_MIN_AGE_MS` overrides for tests).
+
+## Food, hiring, companies, elections
+- Food tab: eat from open shops, chop bars and markets or income is halved (owner keeps 70%).
+- Jobs tab: owners choose how many positions are open; staffed workplaces earn more.
+- City tab: weekly Mayor election (account must be 1 day old), found a company and set the pay level.
+- My Properties: furnish houses (+15% per level), buy an Uber car or trotro.

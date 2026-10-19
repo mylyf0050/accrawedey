@@ -21,6 +21,8 @@ const ICONS = {
   build: '<path d="M4 21V7l8-4 8 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/>',
   sell:  '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1"/>',
   mine:  '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  chopbar: '<path d="M4 11h16l-1.5 8h-13z"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  trotro: '<rect x="3" y="6" width="18" height="10" rx="2"/><path d="M3 11h18M7 19h.01M17 19h.01"/>',
   jobs:  '<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 14h18"/>',
   players: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 3-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4.5 2 4.5 5"/>',
   pan:   '<path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>'
@@ -83,6 +85,8 @@ function refreshStats() {
   if (me.jail && me.jail.until > ts) { const m = Math.ceil((me.jail.until - ts) / 60000); msg = `! In prison: ${Math.floor(m / 60)}h ${m % 60}m left`; }
   else if (S.late) msg = '! Rent unpaid: plots will be taken back';
   else if (S.soonest < ts + 3 * DAYMS) msg = `! A lease ends in ${Math.max(1, Math.ceil((S.soonest - ts) / DAYMS))}d`;
+  else if (R.dumsorAt(ts).on) { const u = new Date(R.dumsorAt(ts).until); msg = '! Dumsor: power cut until midnight, shops and clubs earn 40% less'; }
+  else if (me.fedUntil !== undefined && me.fedUntil < ts) msg = '! Hungry: income halved. Open the Food tab and eat';
   else if (S.unconnected) msg = S.unconnected > 1 ? `! ${S.unconnected} buildings need a road` : '! 1 building needs a road';
   w.style.display = msg ? 'flex' : 'none'; w.textContent = msg;
   refreshDock(); updateGuide();
@@ -100,7 +104,7 @@ function updateGuide() {
 
 // ---------- the pull-down Market sheet ----------
 const sheet = $('sheet'), scrim = $('scrim'), panel = $('panel'); let sheetOpen = false, tab = 'build', openedAt = 0;
-const TABS = [['build', 'Build', 'build'], ['land', 'Land', 'land'], ['mine', 'My Properties', 'mine'], ['jobs', 'Jobs', 'jobs'], ['players', 'Players', 'players']];
+const TABS = [['build', 'Build', 'build'], ['land', 'Land', 'land'], ['mine', 'My Properties', 'mine'], ['jobs', 'Jobs', 'jobs'], ['food', 'Food', 'shop'], ['city', 'City', 'players'], ['players', 'Players', 'players']];
 let boardRows = null;
 function setSheet(open) {
   sheetOpen = open; if (open) openedAt = performance.now(); sheet.style.transform = ''; sheet.classList.toggle('open', open); scrim.classList.toggle('show', open);
@@ -110,7 +114,8 @@ function renderSheet() {
   $('tabs').innerHTML = TABS.map(([k, l, ic]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${svg(ic)}${l}</button>`).join('');
   const st = panel.scrollTop;
   if (tab === 'players' && !boardRows) sendMsg({ t: 'board' });
-  panel.innerHTML = tab === 'build' ? panelBuild() : tab === 'land' ? panelLand() : tab === 'players' ? panelPlayers() : tab === 'jobs' ? panelJobs() : panelMine();
+  if (tab === 'city' && !election.week && election.week !== 0 && !election.ask) { election.ask = 1; sendMsg({ t: 'sync' }); }
+  panel.innerHTML = tab === 'build' ? panelBuild() : tab === 'land' ? panelLand() : tab === 'players' ? panelPlayers() : tab === 'jobs' ? panelJobs() : tab === 'food' ? panelFood() : tab === 'city' ? panelCity() : panelMine();
   panel.scrollTop = st;
 }
 const hoursLine = k => CATALOG[k].hours;
@@ -153,6 +158,7 @@ function panelMine() {
   rows.sort((a, b) => b.v - a.v);
   let h = `<div class="sum"><div><span>Net per day</span><b>${pr.net >= 0 ? '+' : '-'}${fmt(Math.abs(pr.net))}</b></div><div><span>Plots</span><b>${S.own} own · ${S.rent} rent · ${S.lease} lease</b></div><div><span>Rent per day</span><b>${fmt(S.rentDay)}</b></div></div>
     <div class="help">Selling a building returns 60% of what you paid. Selling land returns 70% of its price. Ending a rent or lease returns nothing. <button class="card" style="display:inline-flex;margin-left:6px;padding:6px 12px;border-radius:11px" data-act="sellMode">Sell by tapping the map</button></div>`;
+  h += panelAssets();
   if (!rows.length) return h + '<div class="empty">You do not own anything yet. Open the Land tab to get your first plot.</div>';
   for (const r of rows.slice(0, 60)) {
     const col = TEN[r.L.t];
@@ -165,12 +171,13 @@ function panelMine() {
 function panelJobs() {
   const esc = t => String(t).replace(/</g, '&lt;');
   const jobNow = C0().job;
-  let h = `<div class="help">Everyone pays about <b>${fmt(R.LIVING)}</b> a day for food and daily costs. With no job you earn ${fmt(R.WAGE)} a day from odd jobs, which only just covers it. A job pays more, and the owner pays your salary while the place is open.</div>`;
+  let h = `<div class="help">Everyone pays about <b>${fmt(R.LIVING)}</b> a day for transport and utilities, and must eat (Food tab) or income is halved. With no job you earn ${fmt(R.WAGE)} a day from odd jobs. A job pays more, and the owner pays your salary while the place is open.</div>`;
   if (jobNow) {
     const d = CATALOG[jobNow.g], L = landOf(jobNow.k % N, (jobNow.k / N) | 0);
     h += `<div class="sum"><div><span>Your job</span><b>${d.name}</b></div><div><span>Pay</span><b>${fmt(d.sal)}/day</b></div><div><span>Employer</span><b>${L && L.o ? esc(nameOf(L.o)) : 'City'}</b></div></div>` +
       `<div class="row"><div class="nm"><b>${d.name} · ${d.hours}</b><small>Paid hourly while it is open</small></div><button data-act="go" data-x="${jobNow.k % N}" data-y="${(jobNow.k / N) | 0}">Show</button><button class="danger" data-act="quit">Quit job</button></div>`;
   } else h += `<div class="empty" style="padding:8px 4px;text-align:left">You have no job. Pick one below.</div>`;
+  h += panelOwnerJobs();
   const list = R.openJobs(world).filter(j => j.o !== me.id && !(jobNow && jobNow.k === j.k)).sort((a, b) => (b.free > 0) - (a.free > 0) || b.sal - a.sal).slice(0, 40);
   h += '<div class="tier">Open positions</div>';
   h += list.length ? list.map(j => { const d = CATALOG[j.g];
@@ -180,10 +187,59 @@ function panelJobs() {
   return h;
 }
 const C0 = () => cen();
+const esc2 = t => String(t).replace(/</g, '&lt;');
+function panelFood() {
+  const ts = now(), left = (me.fedUntil || 0) - ts, hr = new Date(ts).getUTCHours(), dw = new Date(ts).getUTCDay();
+  let h = `<div class="help">${left > 0 ? `You are fed for <b>${Math.floor(left / 3600000)}h ${Math.floor(left % 3600000 / 60000)}m</b>.` : '<b style="color:#f87171">You are hungry.</b> Your income is halved.'} Buy food from any open shop, chop bar or market. The owner keeps 70%. You can stock up to 3 days.</div>`;
+  const rows = [];
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const g = world.grid[y][x], f = R.FOOD[g]; if (!f) continue;
+    const L = landOf(x, y), civ = R.CIVIC && R.CIVIC[g], open = civ ? dw !== 0 && hr >= 6 && hr < 18 : CATALOG[g].at(hr, dw) > 0;
+    rows.push({ x, y, g, f, L, open, civ });
+  }
+  rows.sort((a, b) => b.open - a.open || a.f.cost / a.f.hours - b.f.cost / b.f.hours);
+  h += rows.slice(0, 30).map(r => `<div class="row"><div class="nm"><b>${r.civ ? 'Makola Market' : CATALOG[r.g].name}<span class="chip" style="background:${r.L && r.L.o ? '#f9a8d4' : '#cbd5e1'}">${r.L && r.L.o ? esc2(nameOf(r.L.o)) : 'City'}</span></b><small>${r.f.label} ${fmt(r.f.cost)} · fed ${r.f.hours}h · ${r.open ? 'open' : 'closed now'}</small></div>
+    <button data-act="go" data-x="${r.x}" data-y="${r.y}">Show</button><button data-act="eat" data-x="${r.x}" data-y="${r.y}" ${r.open ? '' : 'disabled'}>Eat</button></div>`).join('') || '<div class="empty">No food sellers yet.</div>';
+  return h;
+}
+function panelCity() {
+  const e = election, ts = now(), co = world.companies[me.id];
+  let h = `<div class="help">The city elects a Mayor every week. The Mayor earns <b>${fmt(R.MAYOR_PAY)}</b> a week. You need an account at least a day old to run or vote.</div>`;
+  h += `<div class="sum"><div><span>Mayor</span><b>${e.mayor ? esc2(e.mayor.name) : 'none yet'}</b></div><div><span>Voting ends</span><b>${e.endsAt ? Math.max(0, Math.ceil((e.endsAt - ts) / 3600000)) + 'h' : '-'}</b></div></div>`;
+  h += `<div class="tier">Candidates</div>`;
+  const cs = (e.cands || []).slice().sort((a, b) => b.votes - a.votes);
+  h += cs.length ? cs.map(c => `<div class="row"><div class="nm"><b>${esc2(c.name)}${c.id === me.id ? '<span class="chip" style="background:#fbbf24">you</span>' : ''}</b><small>${c.votes} vote${c.votes === 1 ? '' : 's'}</small></div><button data-act="vote" data-id="${c.id}" ${ballot === c.id ? 'disabled' : ''}>${ballot === c.id ? 'Your vote' : 'Vote'}</button></div>`).join('') : '<div class="empty" style="padding:8px 4px;text-align:left">No candidates yet.</div>';
+  if (!(e.cands || []).some(c => c.id === me.id)) h += `<div class="row"><div class="nm"><b>Run for Mayor</b><small>Free to enter this week</small></div><button data-act="run">Run</button></div>`;
+  h += `<div class="tier">Your company</div>`;
+  if (!co) h += `<div class="row"><div class="nm"><b>Found a company</b><small>${fmt(R.FOUND_COST)} · needs a workplace you own · set pay level for all staff</small></div><button data-act="found">Found</button></div>`;
+  else h += `<div class="row"><div class="nm"><b>${esc2(co.name)}</b><small>Pay level ${co.pay}x on every workplace you own</small></div><button data-act="payDown">-0.1</button><button data-act="payUp">+0.1</button></div>`;
+  return h;
+}
+function ownedWork() {
+  const out = [];
+  for (const k of (world.byOwner[me.id] || [])) { const x = k % N, y = (k / N) | 0, g = world.grid[y][x], d = CATALOG[g]; if (d && d.slots) out.push({ x, y, g, d, L: world.land[k], staff: world.staff[k] || 0 }); }
+  return out;
+}
+function panelOwnerJobs() {
+  const ws = ownedWork(); if (!ws.length) return '';
+  let h = '<div class="tier">Your workplaces: hiring</div><div class="help">You decide how many positions are open. Staff are paid from your cash, but a fuller workplace earns more (40% empty up to 100% full).</div>';
+  return h + ws.map(w => { const open = Math.min(w.d.slots, w.L.h || 0);
+    return `<div class="row"><div class="nm"><b>${w.d.name}</b><small>${w.staff} staff · ${open} of ${w.d.slots} open · ${fmt(w.d.sal)}/day each</small></div><button data-act="hire" data-x="${w.x}" data-y="${w.y}" data-n="${Math.max(0, open - 1)}">-</button><button data-act="hire" data-x="${w.x}" data-y="${w.y}" data-n="${Math.min(w.d.slots, open + 1)}">+</button></div>`; }).join('');
+}
+function panelAssets() {
+  let h = ''; const homes = [];
+  for (const k of (world.byOwner[me.id] || [])) { const x = k % N, y = (k / N) | 0; if (world.grid[y][x] === 'house' && world.land[k].o === me.id) homes.push({ x, y, f: world.land[k].f || 0 }); }
+  if (homes.length) h += '<div class="tier">Furnish your houses</div>' + homes.slice(0, 20).map(o => `<div class="row"><div class="nm"><b>House ${o.x},${o.y}</b><small>Level ${o.f} of 2${o.f < 2 ? ' · next ' + fmt(R.FURNISH_COST[o.f]) + ', +15% income' : ' · full'}</small></div><button data-act="furnish" data-x="${o.x}" data-y="${o.y}" ${o.f < 2 ? '' : 'disabled'}>Furnish</button></div>`).join('');
+  const cur = world.cars[me.id];
+  h += '<div class="tier">Your vehicle</div>';
+  if (cur) h += `<div class="row"><div class="nm"><b>${R.CARS[cur].name}</b><small>Earns while you are not on a job shift</small></div><button class="danger" data-act="vehicle" data-m="sell">Sell ${fmtK(Math.round(R.CARS[cur].cost * 0.5))}</button></div>`;
+  else h += Object.keys(R.CARS).map(c => `<div class="row"><div class="nm"><b>${R.CARS[c].name}</b><small>${fmt(R.CARS[c].cost)} · ${R.CARS[c].hours}</small></div><button data-act="vehicle" data-m="buy" data-i="${c}">Buy</button></div>`).join('');
+  return h;
+}
 function panelPlayers() {
   if (!boardRows) return '<div class="empty">Loading the leaderboard...</div>';
   return `<div class="help">Richest players in the city. Net worth is cash plus the resale value of your buildings and land. ${online} online now.</div>` +
-    boardRows.map((r, i) => `<div class="row"><div class="nm"><b>${i + 1}. ${r.name.replace(/</g, '&lt;')}${r.id === me.id ? '<span class="chip" style="background:#fbbf24">you</span>' : ''}</b><small>${r.plots} plots</small></div><b style="color:var(--gold)">${fmt(r.worth)}</b></div>`).join('');
+    boardRows.map((r, i) => `<div class="row"><div class="nm"><b>${i + 1}. ${r.name.replace(/</g, '&lt;')}${r.id === me.id ? '<span class="chip" style="background:#fbbf24">you</span>' : ''}</b><small>${r.plots} plots</small></div><b style="color:var(--gold)">${fmt(r.worth)}</b>${r.id === me.id ? '' : `<button data-act="gift" data-id="${r.id}" data-name="${r.name.replace(/"/g, '')}">Send</button>`}</div>`).join('');
 }
 panel.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
@@ -195,10 +251,23 @@ panel.addEventListener('click', e => {
     lastMode = b.dataset.m; tool = { k: 'land', mode: lastMode };
     afterPick({ buy: 'Tap a grass tile to buy it', rent: 'Tap a grass tile to rent it', lease: 'Tap a grass tile to lease it for 30 days' }[lastMode]);
   } else if (a === 'sellMode') { tool = { k: 'sell' }; afterPick('Tap a building or plot to sell it'); }
+  else if (a === 'gift') {
+    const v = prompt(`Send how much to ${b.dataset.name}? (GH₵10 to 5,000)`, '100'); if (v === null) return;
+    const amt = Math.round(+v); if (!(amt >= 10)) { toast('Enter an amount of at least 10'); return; }
+    sendMsg({ t: 'gift', to: +b.dataset.id, amt });
+  }
   else if (a === 'apply' || a === 'quit') {
     const x = +b.dataset.x || 0, y = +b.dataset.y || 0; b.disabled = true;
     sendAct(x, y, a === 'quit' ? { k: 'job', mode: 'quit' } : { k: 'job', mode: 'apply' }).then(r => { toast(r.ok ? r.done : r.msg || 'Could not do that', r.ok ? 'ok' : undefined); afterChange(); });
   }
+  else if (a === 'eat') sendAct(+b.dataset.x, +b.dataset.y, { k: 'eat' }).then(r => { toast(r.ok ? r.done : r.msg || 'Could not eat', r.ok ? 'ok' : undefined); afterChange(); });
+  else if (a === 'hire') sendAct(+b.dataset.x, +b.dataset.y, { k: 'hire', n: +b.dataset.n }).then(r => { toast(r.ok ? r.done : r.msg, r.ok ? 'ok' : undefined); afterChange(); });
+  else if (a === 'furnish') sendAct(+b.dataset.x, +b.dataset.y, { k: 'furnish' }).then(r => { toast(r.ok ? r.done : r.msg, r.ok ? 'ok' : undefined); afterChange(); });
+  else if (a === 'vehicle') sendAct(0, 0, { k: 'vehicle', mode: b.dataset.m, item: b.dataset.i }).then(r => { toast(r.ok ? r.done : r.msg, r.ok ? 'ok' : undefined); afterChange(); });
+  else if (a === 'run') sendMsg({ t: 'run' });
+  else if (a === 'vote') sendMsg({ t: 'vote', for: +b.dataset.id });
+  else if (a === 'found') { const n = prompt('Company name (3 to 24 letters)'); if (n) sendMsg({ t: 'company', name: n }); }
+  else if (a === 'payUp' || a === 'payDown') { const c = world.companies[me.id]; if (c) sendMsg({ t: 'company', pay: Math.round((c.pay + (a === 'payUp' ? 0.1 : -0.1)) * 10) / 10 }); }
   else if (a === 'go') { setSheet(false); focusTile(+b.dataset.x, +b.dataset.y); }
   else if (a === 'sell') { sendAct(+b.dataset.x, +b.dataset.y, { k: 'sell' }).then(r => { if (r.ok) { toast(`${r.done}${r.gain ? ' +' + fmt(r.gain) : ''}`, 'ok'); afterChange(); } else toast(r.msg); }); }
 });
@@ -394,3 +463,6 @@ handlers.init = m => {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { sendMsg({ t: 'sync' }); tick(); } });
 resize();
 connect();
+handlers.panel = () => { if (sheetOpen) renderSheet(); };
+handlers.simple = m => { toast(m.msg, m.ok ? 'ok' : undefined); if (sheetOpen) renderSheet(); };
+handlers.gift = m => { toast(m.msg, m.ok ? 'ok' : undefined); if (m.ok) afterChange(); };

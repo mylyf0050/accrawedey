@@ -2,7 +2,7 @@
 const OPEN = {};                                   // which building types are open right now (set each frame)
 const TEN = { own: '#fbbf24', rent: '#60a5fa', lease: '#c084fc' };
 const OTHER = '#f472b6', CITY = '#94a3b8', ZONECOL = { r: '#4ade80', c: '#60a5fa', i: '#f59e0b' };
-const GROUND = { cityhospital: '#d6dde6', citymarket: '#d8c59a', policehq: '#aab8cf', cityprison: '#9a9ea4', police: '#aab8cf', prison: '#9a9ea4', den: '#5b4f60', townhall: '#cfd0bd', hospital: '#d6dde6', market: '#d8c59a', house: '#8cc275', shop: '#b3bcc6', park: '#5fa85d', school: '#c9d2a8', church: '#a7d092', factory: '#a9aaa4', club: '#8a86a6', airport: '#5d6570' };
+const GROUND = { cityhospital: '#d6dde6', citymarket: '#d8c59a', policehq: '#aab8cf', cityprison: '#9a9ea4', police: '#aab8cf', prison: '#9a9ea4', den: '#5b4f60', townhall: '#cfd0bd', hospital: '#d6dde6', market: '#d8c59a', house: '#8cc275', shop: '#b3bcc6', park: '#5fa85d', school: '#c9d2a8', church: '#a7d092', factory: '#a9aaa4', club: '#8a86a6', airport: '#5d6570', chopbar: '#c9b48a', trotro: '#6b7280' };
 
 function plotBorder(sx, sy, col, fill) {
   const z = cam.z, hw = TW / 2 * z * 0.93, hh = TH / 2 * z * 0.93, cx = sx, cy = sy + TH / 2 * z;
@@ -211,6 +211,36 @@ function drawDen(sx, sy, h, k, t) {
   topFace(cx, cy, hw, hh, Hz, '#3a313e');
   nightLights(OPEN.den, k, [[cx + hw * 0.5, cy - Hz * 0.6, 34 * z]]);
 }
+function drawChopBar(sx, sy, h, k, t) {
+  const z = cam.z, hw = TW / 2 * z, hh = TH / 2 * z, cx = sx, cy = sy + hh, bw = hw * 0.56, bh = hh * 0.56, H = 17 * z * k;
+  diamond(sx, sy, '#c9b48a', 0.92);
+  walls(cx, cy, bw, bh, H, '#f3e2b3'); topFace(cx, cy, bw, bh, H, '#b45309');
+  const cols = ['#ce1126', '#fcd116', '#006b3f'];                                   // Ghana-coloured awning
+  for (let i = 0; i < 3; i++) {
+    const x0 = cx + bw * i / 3, x1 = cx + bw * (i + 1) / 3, y0 = cy + bh * (1 - i / 3), y1 = cy + bh * (1 - (i + 1) / 3);
+    poly([[x0, y0 - H * 0.5], [x1, y1 - H * 0.5], [x1, y1 - H * 0.16], [x0, y0 - H * 0.16]], cols[i]);
+  }
+  if (OPEN.chopbar && k > 0.9 && !ghost) {                                          // steam from the pot
+    const tt = performance.now() / 1000;
+    for (let i = 0; i < 3; i++) { const ph = (tt * 0.5 + i / 3) % 1; ctx.globalAlpha = 0.55 * (1 - ph); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx - bw * 0.25 + Math.sin(ph * 6 + i) * 3 * z, cy - bh - H - ph * 18 * z, (2 + ph * 3) * z, 0, 6.3); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  }
+  nightLights(OPEN.chopbar, k, [[cx + bw * 0.4, cy - H * 0.5, 36 * z]]);
+}
+function drawTrotro(sx, sy, h, k, t) {
+  const z = cam.z, hw = TW / 2 * z, hh = TH / 2 * z, cx = sx, cy = sy + hh;
+  diamond(sx, sy, '#6b7280', 0.94);
+  poly([[cx - hw * 0.5, cy], [cx, cy - hh * 0.5], [cx + hw * 0.5, cy], [cx, cy + hh * 0.5]], '#4b5563');
+  const bus = (ox, oy, col) => {
+    const px = cx + ox * hw, py = cy + oy * hh, bw = hw * 0.26, bh = hh * 0.26, H = 9 * z * k;
+    walls(px, py, bw, bh, H, col); topFace(px, py, bw, bh, H, shade(col, 1.1));
+    poly([[px + bw * 0.15, py + bh * 0.62 - H * 0.8], [px + bw * 0.85, py + bh * 0.1 - H * 0.8], [px + bw * 0.85, py + bh * 0.1 - H * 0.45], [px + bw * 0.15, py + bh * 0.62 - H * 0.45]], '#bfdbfe');
+  };
+  bus(-0.28, -0.04, '#fcd116'); bus(0.26, 0.1, '#ce1126');
+  const pole = (px, py) => { ctx.fillStyle = '#e5e7eb'; ctx.fillRect(px, py - 16 * z * k, 2 * z, 16 * z * k); poly([[px - 5 * z, py - 16 * z * k], [px + 7 * z, py - 16 * z * k], [px + 7 * z, py - 22 * z * k], [px - 5 * z, py - 22 * z * k]], '#006b3f'); };
+  pole(cx, cy + hh * 0.35);
+  nightLights(OPEN.trotro, k, [[cx, cy - 10 * z, 46 * z]]);
+}
 const DRAW = {
   cityhospital: drawHospital, citymarket: drawMarket, policehq: drawPolice, cityprison: drawPrison,
   police: drawPolice, prison: drawPrison, den: drawDen, hospital: drawHospital, market: drawMarket,
@@ -218,6 +248,7 @@ const DRAW = {
   house: (sx, sy, h, k) => drawHouse(sx, sy, h, k),
   shop: (sx, sy, h, k) => drawShop(sx, sy, h, k),
   park: (sx, sy, h) => drawPark(sx, sy, h),
-  school: drawSchool, church: drawChurch, factory: drawFactory, club: drawClub, airport: drawAirport
+  school: drawSchool, church: drawChurch, factory: drawFactory, club: drawClub, airport: drawAirport,
+  chopbar: drawChopBar, trotro: drawTrotro
 };
-const SHADOW = { cityhospital: [38, 0.86], citymarket: [14, 0.9], policehq: [30, 0.8], cityprison: [26, 0.9], police: [30, 0.8], prison: [26, 0.9], den: [24, 0.74], hospital: [38, 0.86], market: [14, 0.9], townhall: [30, 0.9], hospital: [38, 0.86], market: [14, 0.9], house: [28, 0.72], shop: [40, 0.82], school: [34, 0.84], church: [30, 0.72], factory: [30, 0.9], club: [34, 0.8], airport: [40, 0.5] };
+const SHADOW = { cityhospital: [38, 0.86], citymarket: [14, 0.9], policehq: [30, 0.8], cityprison: [26, 0.9], police: [30, 0.8], prison: [26, 0.9], den: [24, 0.74], hospital: [38, 0.86], market: [14, 0.9], townhall: [30, 0.9], hospital: [38, 0.86], market: [14, 0.9], house: [28, 0.72], shop: [40, 0.82], school: [34, 0.84], church: [30, 0.72], factory: [30, 0.9], club: [34, 0.8], airport: [40, 0.5], chopbar: [30, 0.76], trotro: [34, 0.8] };

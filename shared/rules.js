@@ -10,7 +10,11 @@
   const HOUR = 3600000, DAYMS = 86400000, MAXAWAY = 7 * DAYMS;
   const CUR = 'GH₵';
   const START_MONEY = 6500;                 // enough for a plot, a house and a short road repair
-  const LIVING = 50;                        // food and daily costs every player pays, per day
+  const HOUR_MS = 3600000;
+  const LIVING = 20;                        // transport (10) and utilities (10) every player pays, per day. Food is bought separately.
+  const LIVING_ITEMS = { transport: 10, utilities: 10 };
+  const FURNISH_COST = [1800, 3200], FURNISH_BOOST = 0.15;        // two furnishing levels, each lifts a house's income by 15%
+  const FOUND_COST = 2000, PAY_MIN = 0.8, PAY_MAX = 1.5, MAYOR_PAY = 5000;
   const WAGE = 60;                          // odd-jobs income per day, so nobody is ever stuck at zero
   const ROAD = { cost: 120, repair: 40 };
   const LAND = { rent: 0.012, lease: 0.30, leaseDays: 30, sell: 0.70 };
@@ -24,16 +28,16 @@
                at: () => 14, blurb: 'Families move in and pay you rent. Needs a road.' },
     park:    { name: 'Park',       tier: 'Essentials', cost: 1500,   unlock: 0,  homes: 0, jobs: 1,  upkeep: 5,    happy: 4,  warn: 0,  zones: 'rc', hours: 'Open all day',
                at: () => 0, blurb: 'No income, but residents are happier.' },
-    shop:    { sal: 90, name: 'Shop',       tier: 'Commerce',   cost: 6000,   unlock: 4,  homes: 0, jobs: 3,  upkeep: 25,   happy: 1,  warn: 66, zones: 'rc', hours: 'Every day 08:00 to 20:00',
-               at: h => between(h, 8, 20) ? 35 : 0, blurb: 'Sells to your residents. Needs a road and customers.' },
+    shop:    { sal: 90, name: 'Provision Shop',       tier: 'Commerce',   cost: 6000,   unlock: 4,  homes: 0, jobs: 3,  upkeep: 25,   happy: 1,  warn: 66, zones: 'rc', hours: 'Every day 08:00 to 20:00',
+               at: h => between(h, 8, 20) ? 35 : 0, blurb: 'Indomie, Milo, sachet water and airtime for the whole street. Needs a road and customers.' },
     club:    { sal: 150, name: 'Night Club', tier: 'Commerce',   cost: 35000,  unlock: 16, homes: 0, jobs: 8,  upkeep: 120,  happy: 3,  warn: 62, zones: 'c', hours: 'Nightly 20:00 to 04:00',
-               at: (h, d) => (h >= 20 || h < 4) ? (d === 5 || d === 6 ? 238 : 170) : 0, blurb: 'Big money after dark, busiest Friday and Saturday. Commercial district only.' },
+               at: (h, d) => (h >= 20 || h < 4) ? (d === 5 || d === 6 ? 238 : 170) : 0, blurb: 'Oxford Street energy: big money after dark, busiest Friday and Saturday. Commercial district only.' },
     church:  { sal: 70, name: 'Church',     tier: 'Community',  cost: 9000,   unlock: 8,  homes: 0, jobs: 2,  upkeep: 25,   happy: 6,  warn: 80, zones: 'rc', hours: 'Sunday 06:00 to 14:00, daily 06:00 to 18:00',
                at: (h, d) => d === 0 && between(h, 6, 14) ? 60 : between(h, 6, 18) ? 8 : 0, blurb: 'Steady offerings, big on Sundays. Raises happiness a lot.' },
     school:  { sal: 120, name: 'School',     tier: 'Community',  cost: 18000,  unlock: 12, homes: 0, jobs: 6,  upkeep: 60,   happy: 7,  warn: 66, zones: 'rc', hours: 'Mon to Fri 07:00 to 15:00',
                at: (h, d) => d >= 1 && d <= 5 && between(h, 7, 15) ? 55 : 0, blurb: 'School fees on weekdays. Makes the whole town happier.' },
-    market:  { sal: 100, name: 'Market',     tier: 'Commerce',   cost: 25000,  unlock: 14, homes: 0, jobs: 10, upkeep: 80,   happy: 2,  warn: 50, zones: 'rc', hours: 'Mon to Sat 06:00 to 18:00',
-               at: (h, d) => d !== 0 && between(h, 6, 18) ? 110 : 0, blurb: 'Traders and stalls pay you for space. Busy all week except Sunday.' },
+    market:  { sal: 100, name: 'Open Market',     tier: 'Commerce',   cost: 25000,  unlock: 14, homes: 0, jobs: 10, upkeep: 80,   happy: 2,  warn: 50, zones: 'rc', hours: 'Mon to Sat 06:00 to 18:00',
+               at: (h, d) => d !== 0 && between(h, 6, 18) ? 110 : 0, blurb: 'Makola-style stalls pay you for space. Busy every day except Sunday.' },
     hospital:{ sal: 160, name: 'Hospital',   tier: 'Community',  cost: 45000,  unlock: 24, homes: 0, jobs: 15, upkeep: 200,  happy: 9,  warn: 80, zones: 'rc', hours: 'Open 24 hours',
                at: () => 40, blurb: 'Patient fees all day and night. Makes the whole town much happier.' },
     police:  { sal: 130, name: 'Police Station', tier: 'Safety', cost: 30000,  unlock: 12, homes: 0, jobs: 8,  upkeep: 90,   happy: 3,  warn: 66, zones: 'rc', hours: 'Open 24 hours',
@@ -45,18 +49,34 @@
     factory: { sal: 130, name: 'Factory',    tier: 'Industry',   cost: 60000,  unlock: 20, homes: 0, jobs: 20, upkeep: 150,  happy: -8, warn: 70, zones: 'i', hours: 'Mon to Sat 06:00 to 22:00',
                at: (h, d) => d !== 0 && between(h, 6, 22) ? 85 : 0, blurb: 'Lots of jobs and steady output, but pollution lowers happiness. Industrial district only.' },
     airport: { sal: 220, name: 'Airport',    tier: 'Landmark',   cost: 400000, unlock: 60, homes: 0, jobs: 60, upkeep: 1500, happy: -4, warn: 70, zones: 'i', hours: 'Every day 05:00 to 23:00',
-               at: h => between(h, 5, 23) ? 800 : 0, blurb: 'The ultimate landmark. Huge income, huge cost. Industrial district only.' }
+               at: h => between(h, 5, 23) ? 800 : 0, blurb: 'The ultimate landmark. Huge income, huge cost. Industrial district only.' },
+    chopbar: { sal: 80, name: 'Chop Bar', tier: 'Commerce', cost: 7500, unlock: 6, homes: 0, jobs: 3, upkeep: 30, happy: 2, warn: 60, zones: 'rc', hours: 'Every day 06:00 to 22:00',
+               at: h => between(h, 6, 22) ? 28 : 0, blurb: 'Waakye, banku and kenkey for the neighbourhood. Steady money from breakfast to supper.' },
+    trotro:  { sal: 100, name: 'Trotro Station', tier: 'Transport', cost: 20000, unlock: 10, homes: 0, jobs: 6, upkeep: 60, happy: 1, warn: 66, zones: 'rc', hours: 'Every day 05:00 to 21:00',
+               at: h => between(h, 5, 21) ? (between(h, 5, 9) || between(h, 16, 20) ? 65 : 40) : 0, blurb: 'Fares from the whole town. Rush hours (05:00 to 09:00 and 16:00 to 20:00) pay the most.' }
   };
-  const TIERS = ['Essentials', 'Commerce', 'Community', 'Safety', 'Industry', 'Landmark', 'Underworld'];
+  // A vehicle earns when its owner is not on a job shift. A trotro minibus needs more cash than an Uber car but earns more.
+  const CARS = {
+    uber:   { name: 'Uber car',        cost: 10000, run: 4, hours: 'Daily 06:00 to 22:00, surge 07:00 to 09:00 and 17:00 to 20:00', at: h => between(h, 6, 22) ? (between(h, 7, 9) || between(h, 17, 20) ? 35 : 22) : 0 },
+    trotro: { name: 'Trotro minibus',  cost: 22000, run: 9, hours: 'Daily 05:00 to 21:00, rush 05:00 to 09:00 and 16:00 to 20:00', at: h => between(h, 5, 21) ? (between(h, 5, 9) || between(h, 16, 20) ? 70 : 45) : 0 }
+  };
+  // Staff slots and daily salary per workplace. Staffing lifts income from 40% (empty) to 100% (full), so hiring pays for itself.
+  const SLOTS = { shop: [2, 90], chopbar: [2, 90], church: [1, 80], school: [1, 120], market: [5, 100], club: [6, 110], hospital: [4, 110], police: [2, 100], prison: [3, 100], factory: [6, 90], airport: [40, 150], trotro: [4, 90] };
+  for (const k in CATALOG) { delete CATALOG[k].sal; if (SLOTS[k]) { CATALOG[k].slots = SLOTS[k][0]; CATALOG[k].sal = SLOTS[k][1]; } }
+  const STAFF_FLOOR = 0.4;
+  // Food: bought from an open seller. The owner keeps 70% (the rest is ingredients). Being hungry halves income.
+  const FOOD = { shop: { label: 'Snacks', cost: 15, hours: 6 }, chopbar: { label: 'Hot meal', cost: 30, hours: 12 }, market: { label: 'Groceries', cost: 80, hours: 72 }, citymarket: { label: 'Groceries', cost: 80, hours: 72 } };
+  const FEED_CAP = 72 * HOUR_MS, OWNER_SHARE = 0.7, HUNGRY_FACTOR = 0.5;
+  const TIERS = ['Essentials', 'Commerce', 'Transport', 'Community', 'Safety', 'Industry', 'Landmark', 'Underworld'];
   // Built by the city itself. Players cannot buy or sell these, but they lift land prices nearby.
-  const CIVIC = { townhall: { name: 'Town Hall' }, cityhospital: { name: 'General Hospital' }, citymarket: { name: 'Central Market' }, policehq: { name: 'Police HQ' }, cityprison: { name: 'Central Prison' } };
+  const CIVIC = { townhall: { name: 'Town Hall' }, cityhospital: { name: 'General Hospital' }, citymarket: { name: 'Makola Market' }, policehq: { name: 'Police HQ' }, cityprison: { name: 'Central Prison' } };
 const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1500, inmateFee: 400, baseRisk: 0.005, perPolice: 0.04, maxPolice: 3, policeRadius: 9, denRadius: 6 };
   const ZONES = { r: 'Residential', c: 'Commercial', i: 'Industrial' };
 
   // ---------- world ----------
   const key = (x, y) => y * N + x;
   const blankGrid = () => Array.from({ length: N }, () => Array(N).fill('empty'));
-  function makeWorld() { return { grid: blankGrid(), land: {}, byOwner: {}, cracked: {}, names: { 0: 'City' }, jobs: {}, staff: {} }; }
+  function makeWorld() { return { grid: blankGrid(), land: {}, byOwner: {}, cracked: {}, names: { 0: 'City' }, jobs: {}, staff: {}, companies: {}, cars: {} }; }
   function setLand(w, k, entry) {
     const old = w.land[k]; if (old && w.byOwner[old.o]) w.byOwner[old.o].delete(k);
     w.land[k] = entry; (w.byOwner[entry.o] || (w.byOwner[entry.o] = new Set())).add(k);
@@ -64,7 +84,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
   function delLand(w, k) { const old = w.land[k]; if (old && w.byOwner[old.o]) w.byOwner[old.o].delete(k); delete w.land[k]; }
   function reindex(w) {
     w.byOwner = {}; for (const k in w.land) (w.byOwner[w.land[k].o] || (w.byOwner[w.land[k].o] = new Set())).add(+k);
-    w.jobs = w.jobs || {}; w.staff = {}; for (const id in w.jobs) { const k = w.jobs[id].k; w.staff[k] = (w.staff[k] || 0) + 1; }
+    w.jobs = w.jobs || {}; w.companies = w.companies || {}; w.cars = w.cars || {}; w.staff = {}; for (const id in w.jobs) { const k = w.jobs[id].k; w.staff[k] = (w.staff[k] || 0) + 1; }
   }
   // ---------- jobs: a player works at one building, the owner pays the salary while it is open ----------
   const openHoursOf = (k, d) => { let n = 0; for (let h = 0; h < 24; h++) if (CATALOG[k].at(h, d) > 0) n++; return n; };
@@ -76,11 +96,14 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
   const workersAt = (w, k) => Object.keys(w.jobs).filter(id => w.jobs[id].k === +k).map(Number);
   // a job is valid only while its building stands, is the same kind, and is on a working road
   function jobValid(w, j) { if (!j) return false; const x = j.k % N, y = (j.k / N) | 0; return w.grid[y][x] === j.g && !!CATALOG[j.g] && !!CATALOG[j.g].sal && !!w.land[j.k] && nearRoad(w, x, y); }
+  const openN = (w, k, g) => { const L = w.land[k], d = CATALOG[g]; return !L || !d || !d.slots ? 0 : L.o === 0 ? d.slots : Math.min(d.slots, L.h || 0); };
+  const payMul = (w, o) => (o && w.companies && w.companies[o]) ? w.companies[o].pay : 1;
   function openJobs(w) {
     const out = [];
     for (const k in w.land) { const x = k % N, y = (k / N) | 0, g = w.grid[y][x], d = CATALOG[g];
       if (!d || !d.sal || !nearRoad(w, x, y)) continue;
-      out.push({ x, y, k: +k, g, o: w.land[k].o, free: d.jobs - (w.staff[k] || 0), slots: d.jobs, sal: d.sal }); }
+      const op = openN(w, +k, g); if (op <= 0) continue;
+      const o = w.land[k].o, pm = payMul(w, o); out.push({ x, y, k: +k, g, o, co: o && w.companies[o] ? w.companies[o].name : '', free: Math.max(0, op - (w.staff[k] || 0)), slots: op, sal: Math.round(d.sal * pm), pm }); }
     return out;
   }
 
@@ -163,13 +186,15 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
       if (L.t === 'lease') c.soonest = Math.min(c.soonest, L.end);
       const d = CATALOG[g]; if (!d) continue;
       const ok = g === 'park' || nearRoad(w, x, y);
-      c.built++; c.blds.push({ x, y, k: g, ok, n: w.staff[k] || 0 });
+      c.built++; c.blds.push({ x, y, k: g, ok, n: w.staff[k] || 0, f: L.f || 0 });
       if (!ok) c.unconnected++; else {
         c.pop += d.homes; c.jobs += d.jobs; c.happyAdd += d.happy;
         if (g === 'house') c.happyAdd += 2 * Math.min(2, policeCover(w, x, y)) - 3 * Math.min(3, countNear(w, ['den'], x, y, LAW.denRadius));   // safe streets vs black markets
       }
     }
     const jb = w.jobs && w.jobs[pid]; c.job = jobValid(w, jb) ? jb : null;
+    c.jobPm = c.job ? payMul(w, w.land[c.job.k].o) : 1; c.pm = payMul(w, pid);
+    c.car = (w.cars && w.cars[pid]) || null; c.living = LIVING - (c.car ? LIVING_ITEMS.transport : 0);
     c.employed = Math.min(c.pop, c.jobs);
     c.homesF = c.pop ? 0.6 + 0.4 * Math.min(1, c.jobs / c.pop) : 0;
     c.workF = c.jobs ? 0.5 + 0.5 * Math.min(1, c.pop / c.jobs) : 0;
@@ -177,16 +202,26 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
     c.mood = 0.85 + 0.15 * c.happy / 100;
     return c;
   }
-  function rates(h, d, c) {
-    let inc = c.job ? 0 : WAGE / 24, cost = c.rentDay / 24 + LIVING / 24;
-    if (c.job && CATALOG[c.job.g].at(h, d) > 0) inc += hourPay(c.job.g, d);
+  // Dumsor: on about one evening in three the power is rationed from 18:00 to midnight (Ghana time).
+  const NO_POWER_CUT = ['hospital', 'police', 'prison', 'airport', 'house', 'park'];
+  const dumsorDay = dn => hash(dn, 77) % 3 === 0;
+  function dumsorAt(ts) { const dn = Math.floor(ts / DAYMS), h = new Date(ts).getUTCHours(); return dumsorDay(dn) && h >= 18 ? { on: true, until: (dn + 1) * DAYMS } : { on: false }; }
+  const DUMSOR_FACTOR = 0.6;
+  function rates(h, d, c, dn) {
+    const cut = dn !== undefined && h >= 18 && dumsorDay(dn);
+    let inc = c.job ? 0 : WAGE / 24, cost = c.rentDay / 24 + (c.living === undefined ? LIVING : c.living) / 24;
+    const working = c.job && CATALOG[c.job.g].at(h, d) > 0;
+    if (working) inc += hourPay(c.job.g, d) * (c.jobPm || 1);
+    if (c.car && !working) { const v = CARS[c.car], g = v.at(h); if (g > 0) { inc += g; cost += v.run; } }
     for (const b of c.blds) {
       const def = CATALOG[b.k]; cost += def.upkeep / 24;
       if (!b.ok) continue;
       const y = def.at(h, d);
-      if (y > 0 && b.n) cost += b.n * hourPay(b.k, d);
-      if (y > 0) inc += y * (b.k === 'house' ? c.homesF : c.workF) * c.mood;
+      if (y > 0 && b.n) cost += b.n * hourPay(b.k, d) * (c.pm || 1);
+      const staffF = def.slots ? STAFF_FLOOR + (1 - STAFF_FLOOR) * Math.min(1, (b.n || 0) / def.slots) : 1;
+      if (y > 0) inc += y * (b.k === 'house' ? c.homesF * (1 + FURNISH_BOOST * (b.f || 0)) : c.workF * staffF) * c.mood * (cut && !NO_POWER_CUT.includes(b.k) ? DUMSOR_FACTOR : 1);
     }
+    if (c.hungry) inc *= HUNGRY_FACTOR;
     return { inc, cost };
   }
   function projectDay(c, dow) {
@@ -200,8 +235,10 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
     for (const k of (w.byOwner[p.id] || [])) {
       const L = w.land[k], x = k % N, y = (k / N) | 0, d = CATALOG[w.grid[y][x]];
       if (d) v += d.cost * 0.6;
+      if (L.f) v += FURNISH_COST.slice(0, L.f).reduce((a, b) => a + b, 0) * 0.5;
       if (L.t === 'own') v += landPrice(w, x, y) * LAND.sell;
     }
+    if (w.cars && w.cars[p.id]) v += CARS[w.cars[p.id]].cost * 0.5;
     return Math.round(v);
   }
 
@@ -214,7 +251,8 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
     const before = p.money; let cur = from;
     while (cur < ts) {
       const end = Math.min((Math.floor(cur / HOUR) + 1) * HOUR, ts), seg = end - cur, dt = new Date(cur);
-      const r = rates(dt.getUTCHours(), dt.getUTCDay(), c);
+      c.hungry = p.fedUntil !== undefined && !(p.fedUntil > cur);
+      const r = rates(dt.getUTCHours(), dt.getUTCDay(), c, Math.floor(cur / DAYMS));
       p.money += (r.inc - r.cost) * seg / HOUR; cur = end;
     }
     p.t = ts;
@@ -305,8 +343,44 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
       if (L.o === me.id) return no('You own this place. Hire other players instead');
       if (!nearRoad(w, x, y)) return no('This workplace has no working road, so it is closed');
       if (mineJob && jobValid(w, mineJob)) return no('You already have a job. Quit it first');
-      if ((w.staff[k] || 0) >= d.jobs) return no('No free positions here');
-      return { ok: true, cost: 0, verb: 'Take job', note: `${fmt(d.sal)}/day`, done: `You work at the ${d.name} now: ${fmt(d.sal)}/day`, apply() { setJob(w, me.id, { k, g }); } };
+      if (openN(w, k, g) <= 0) return no('This place is not hiring');
+      if ((w.staff[k] || 0) >= openN(w, k, g)) return no('No free positions here');
+      return { ok: true, cost: 0, verb: 'Take job', note: `${fmt(d.sal)}/day`, done: `You work at the ${d.name} now: ${fmt(d.sal)}/day`, apply() { setJob(w, me.id, { k, g, at: ts }); } };
+    }
+    if (T.k === 'hire') {
+      const d = CATALOG[g], n = T.n;
+      if (other) return no(other);
+      if (!mine || !d || !d.slots) return no('Hiring works on a workplace you own');
+      if (!Number.isInteger(n) || n < 0 || n > d.slots) return no(`Open positions: 0 to ${d.slots}`);
+      return { ok: true, cost: 0, verb: 'Set hiring', done: n ? `${n} position${n > 1 ? 's' : ''} open` : 'Hiring closed', apply() {
+        L.h = n; const staff = workersAt(w, k).sort((a, b) => (w.jobs[b].at || 0) - (w.jobs[a].at || 0)), fired = [];
+        while (staff.length > n) { const id = staff.shift(); setJob(w, id, null); fired.push(id); }
+        this.fired = fired; } };
+    }
+    if (T.k === 'eat') {
+      const f = FOOD[g];
+      if (!f || !L) return no('No food is sold here');
+      const dt = new Date(ts), hr = dt.getUTCHours(), dw = dt.getUTCDay();
+      const open = CIVIC[g] ? dw !== 0 && hr >= 6 && hr < 18 : CATALOG[g].at(hr, dw) > 0;
+      if (!open) return no('Closed right now');
+      if (!CIVIC[g] && !nearRoad(w, x, y)) return no('Closed: no working road');
+      if ((me.fedUntil || 0) - ts > FEED_CAP - f.hours * HOUR_MS) return no('You are already full');
+      return afford(me, f.cost, f.label, { note: `fed for ${f.hours}h`, done: `${f.label}: fed for ${f.hours} hours`,
+        pay: { to: L.o, amt: L.o ? Math.round(f.cost * OWNER_SHARE) : 0 },
+        apply() { me.fedUntil = Math.min(ts + FEED_CAP, Math.max(ts, me.fedUntil || 0) + f.hours * HOUR_MS); } });
+    }
+    if (T.k === 'furnish') {
+      if (other) return no(other);
+      if (!mine || g !== 'house') return no('Furnishing works on a house you own');
+      const lv = L.f || 0; if (lv >= 2) return no('This house is fully furnished');
+      return afford(me, FURNISH_COST[lv], `Furnish (level ${lv + 1})`, { note: `+${Math.round(FURNISH_BOOST * 100)}% rent`, done: `House furnished, level ${lv + 1}`, apply() { L.f = lv + 1; } });
+    }
+    if (T.k === 'vehicle') {
+      const cur = w.cars && w.cars[me.id];
+      if (T.mode === 'sell') return cur ? { ok: true, gain: Math.round(CARS[cur].cost * 0.5), verb: 'Sell vehicle', done: 'Vehicle sold', apply() { delete w.cars[me.id]; } } : no('You have no vehicle');
+      const v = CARS[T.item]; if (!v) return no();
+      if (cur) return no('You already have a vehicle. Sell it first');
+      return afford(me, v.cost, `Buy ${v.name}`, { done: `You bought a ${v.name}`, apply() { w.cars[me.id] = T.item; } });
     }
     if (T.k === 'sell') {
       if (g === 'road') {
@@ -315,7 +389,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
       }
       if (other) return no(other);
       if (CIVIC[g]) return no('That is a city building');
-      if (CATALOG[g]) { const d = CATALOG[g]; return { ok: true, gain: Math.round(d.cost * 0.6), verb: `Sell ${d.name}`, done: `${d.name} sold`, apply() { w.grid[y][x] = 'empty'; } }; }
+      if (CATALOG[g]) { const d = CATALOG[g]; return { ok: true, gain: Math.round(d.cost * 0.6), verb: `Sell ${d.name}`, done: `${d.name} sold`, apply() { w.grid[y][x] = 'empty'; if (L) { delete L.f; delete L.h; } } }; }
       if (!mine) return no('Nothing to sell here');
       if (L.t === 'own') return { ok: true, gain: Math.round(landPrice(w, x, y) * LAND.sell), verb: 'Sell plot', done: 'Plot sold', apply() { delLand(w, k); } };
       return { ok: true, gain: 0, verb: L.t === 'rent' ? 'End rent' : 'Give up lease', done: L.t === 'rent' ? 'Rent ended' : 'Lease given up', apply() { delLand(w, k); } };
@@ -331,7 +405,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
     return p;
   }
 
-  const api = { LAW, POLICE, PRISONS, countNear, policeCover, raidRisk, nearestPolice, prisons, N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, LIVING, ROAD, LAND, CATALOG, TIERS, CIVIC, ZONES, key, blankGrid, makeWorld, setLand, delLand, reindex, hash,
-    zoneOf, nearRoad, intactRoad, landPrice, rentDaily, leaseCost, fmt, seedWorld, initCivic, census, rates, projectDay, setJob, workersAt, jobValid, openJobs, hourPay, dayYield, netWorth, settle, expireDue, plan, perform, clamp };
+  const api = { LAW, POLICE, PRISONS, countNear, policeCover, raidRisk, nearestPolice, prisons, N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, LIVING, LIVING_ITEMS, FURNISH_COST, FURNISH_BOOST, FOUND_COST, PAY_MIN, PAY_MAX, MAYOR_PAY, CARS, payMul, ROAD, LAND, CATALOG, TIERS, CIVIC, ZONES, key, blankGrid, makeWorld, setLand, delLand, reindex, hash,
+    zoneOf, nearRoad, intactRoad, landPrice, rentDaily, leaseCost, fmt, seedWorld, initCivic, census, rates, dumsorAt, FOOD, FEED_CAP, OWNER_SHARE, HUNGRY_FACTOR, STAFF_FLOOR, openN, DUMSOR_FACTOR, projectDay, setJob, workersAt, jobValid, openJobs, hourPay, dayYield, netWorth, settle, expireDue, plan, perform, clamp };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Rules = api;
 })(typeof self !== 'undefined' ? self : this);
