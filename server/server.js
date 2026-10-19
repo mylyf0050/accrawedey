@@ -132,7 +132,8 @@ function hello(ws, m) {
       if (recent(lim.signups, ws.ip, 3600000).length >= SIGNUPS_PER_HOUR) return fail('Too many new accounts from your network. Try later.');
       lim.signups.get(ws.ip).push(now());
       const salt = crypto.randomBytes(16).toString('hex');
-      p = { id: nextId++, name, money: R.START_MONEY, t: now(), born: now(), fedUntil: now() + 24 * 3600000, salt, pw: hashPw(pw, salt) };
+      const bg = R.rollBackground(crypto.randomInt(0, 1000000) / 1000000);
+      p = { id: nextId++, name, bg, av: null, money: R.BACKGROUNDS[bg].money, t: now(), born: now(), fedUntil: now() + 24 * 3600000, salt, pw: hashPw(pw, salt) };
       players[p.id] = p; world.names[p.id] = name; dirty = true;
       broadcast({ t: 'name', id: p.id, name });
     }
@@ -142,7 +143,7 @@ function hello(ws, m) {
   socks.set(ws, p.id); ws.pid = p.id;
   const away = now() - p.t, gain = settleP(p, now());
   const grid = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) grid.push(TYPE_ID[world.grid[y][x]]);
-  send(ws, { t: 'init', now: now(), token, you: { id: p.id, name: p.name, money: p.money, ts: p.t, born: p.born, jail: p.jail || null, fed: p.fedUntil },
+  send(ws, { t: 'init', now: now(), token, you: { id: p.id, name: p.name, money: p.money, ts: p.t, born: p.born, jail: p.jail || null, fed: p.fedUntil, bg: p.bg || 'mid', av: p.av || null },
     world: { types: TYPES, grid, land: world.land, cracked: world.cracked, names: world.names, jobs: world.jobs, companies: world.companies, cars: world.cars }, away: away > 600000 ? { ms: Math.min(away, R.MAXAWAY), gain } : null });
   send(ws, electionMsg()); send(ws, ballotMsg(p.id));
   broadcast({ t: 'online', n: socks.size });
@@ -251,6 +252,7 @@ wss.on('connection', (ws, req) => {
       else if (m.t === 'board') board(ws);
       else if (m.t === 'gift') gift(ws, p, m);
       else if (m.t === 'company') company(ws, p, m);
+      else if (m.t === 'avatar') { const av = R.cleanAvatar(m.av); if (!av) send(ws, { t: 'avatarRes', ok: false, msg: 'Pick a valid look.' }); else { p.av = av; dirty = true; send(ws, { t: 'avatarRes', ok: true, av }); } }
       else if (m.t === 'run') vote(ws, p, m, true);
       else if (m.t === 'vote') vote(ws, p, m, false);
       else if (m.t === 'sync') { settleP(p, now()); send(ws, Object.assign(youMsg(p), { now: now() })); }

@@ -10,13 +10,17 @@
   </div>
   <button class="glass pill" id="pull"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>Market</button>
   <div class="glass pill" id="warn"></div>
+  <button class="glass pill" id="shift"><span id="shTxt"></span></button>
+  <button class="glass pill" id="energy" title="Energy (food). Tap for your room"><span>⚡</span><i><b id="enBar"></b></i><em id="enTxt"></em></button>
   <div class="glass pill" id="who"></div>
 </div>
 
 <div id="hint" class="glass"></div>
-<div id="join"><form id="joinForm" class="glass"><h2>Welcome to the City</h2><p>One shared city. Every plot, road and building belongs to a real player or to the city itself. New players start with <b>GH₵6,500</b>.</p><div class="jtabs"><button type="button" data-m="signup" class="on">Sign up</button><button type="button" data-m="login">Log in</button></div><input id="joinName" maxlength="16" placeholder="Your name" autocomplete="username"><input id="joinPass" type="password" maxlength="100" placeholder="Password (6+ characters)" autocomplete="new-password"><div id="joinErr"></div><button type="submit" id="joinGo">Create account</button></form></div>
+<div id="join"><form id="joinForm" class="glass"><h2>Welcome to the City</h2><p>One shared city. Every plot, road and building belongs to a real player or to the city itself. Your family background is rolled when you sign up: born rich, ordinary or broke.</p><div class="jtabs"><button type="button" data-m="signup" class="on">Sign up</button><button type="button" data-m="login">Log in</button></div><input id="joinName" maxlength="16" placeholder="Your name" autocomplete="username"><input id="joinPass" type="password" maxlength="100" placeholder="Password (6+ characters)" autocomplete="new-password"><div id="joinErr"></div><button type="submit" id="joinGo">Create account</button></form></div>
 <div id="offline" class="glass">Reconnecting to the city...</div>
 <div id="toast" class="glass"></div>
+<div id="shiftcard" class="glass"></div>
+<div id="creator"><div class="glass cbox"><h2>Create your character</h2><div id="cStory"></div><div id="cPrev"></div><div id="cOpts"></div><div id="cErr"></div><button id="cGo">Enter the city</button></div></div>
 <div id="tag" class="glass"></div>
 <div id="zoom" class="glass">
   <button id="zin" title="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>

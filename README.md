@@ -26,3 +26,12 @@ New buildings: Chop Bar, Trotro Station (appended to the type list so older save
 - Jobs tab: owners choose how many positions are open; staffed workplaces earn more.
 - City tab: weekly Mayor election (account must be 1 day old), found a company and set the pay level.
 - My Properties: furnish houses (+15% per level), buy an Uber car or trotro.
+
+## Characters and birth backgrounds
+- After signing up, the server rolls a family background (10% born rich GH₵20,000, 60% ordinary GH₵6,500, 30% born broke GH₵2,000). Players cannot choose it.
+- Then the player builds a character (gender, skin tone, hairstyle, hair colour, outfit). The Me tab shows the room, energy (food) bar, cash, power and home comfort. The look can be changed free.
+- The guide card, warnings and notices can be closed.
+
+## Shifts and side hustle
+- Employed players see an "On shift, Xh left" pill. Signing in during a shift opens a card with the workplace, the time left to clock out and a button to show it on the map.
+- Off shift, everyone with a job earns a side hustle of GH₵3 an hour.

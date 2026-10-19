@@ -14,7 +14,17 @@
   const LIVING = 20;                        // transport (10) and utilities (10) every player pays, per day. Food is bought separately.
   const LIVING_ITEMS = { transport: 10, utilities: 10 };
   const FURNISH_COST = [1800, 3200], FURNISH_BOOST = 0.15;        // two furnishing levels, each lifts a house's income by 15%
+  // Birth backgrounds: rolled by the server at sign-up (players do not pick), so the start of life differs.
+  const BACKGROUNDS = {
+    rich: { name: 'Born rich', money: 20000, w: 10, story: 'Your family owns property in East Legon. You start with a big head start, but nobody respects money you did not earn.' },
+    mid:  { name: 'Ordinary family', money: 6500, w: 60, story: 'A normal family from Accra. Enough to start, not enough to waste.' },
+    poor: { name: 'Born broke', money: 2000, w: 30, story: 'You grew up with little. You start with almost nothing, so rent a plot, get a job and hustle.' }
+  };
+  const AVATAR_MAX = { g: 1, s: 5, h: 4, c: 5, o: 5 };
+  const cleanAvatar = v => { if (!v || typeof v !== 'object') return null; const o = {}; for (const k in AVATAR_MAX) { const n = v[k]; if (!Number.isInteger(n) || n < 0 || n > AVATAR_MAX[k]) return null; o[k] = n; } return o; };
+  const rollBackground = r => { let x = r * 100; for (const k in BACKGROUNDS) { x -= BACKGROUNDS[k].w; if (x < 0) return k; } return 'mid'; };
   const FOUND_COST = 2000, PAY_MIN = 0.8, PAY_MAX = 1.5, MAYOR_PAY = 5000;
+  const SIDE_HR = 3;                        // side hustle: GH₵3 for every hour an employed player is off shift (airtime, deliveries, braiding...)
   const WAGE = 60;                          // odd-jobs income per day, so nobody is ever stuck at zero
   const ROAD = { cost: 120, repair: 40 };
   const LAND = { rent: 0.012, lease: 0.30, leaseDays: 30, sell: 0.70 };
@@ -205,13 +215,22 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
   // Dumsor: on about one evening in three the power is rationed from 18:00 to midnight (Ghana time).
   const NO_POWER_CUT = ['hospital', 'police', 'prison', 'airport', 'house', 'park'];
   const dumsorDay = dn => hash(dn, 77) % 3 === 0;
+  // Shift timing for a job: is the player on shift right now, when did it start and when does it end (Ghana time = UTC).
+  function shiftInfo(job, ts) {
+    if (!job || !CATALOG[job.g]) return null; const H = HOUR_MS, g = job.g, base = Math.floor(ts / H) * H;
+    const open = tt => { const dt = new Date(tt); return CATALOG[g].at(dt.getUTCHours(), dt.getUTCDay()) > 0; };
+    const on = open(base); let end = null, start = base;
+    for (let i = 1; i <= 72; i++) if (open(base + i * H) !== on) { end = base + i * H; break; }
+    for (let i = 1; i <= 72; i++) if (open(base - i * H) !== on) { start = base - (i - 1) * H; break; }
+    return { on, start, end };
+  }
   function dumsorAt(ts) { const dn = Math.floor(ts / DAYMS), h = new Date(ts).getUTCHours(); return dumsorDay(dn) && h >= 18 ? { on: true, until: (dn + 1) * DAYMS } : { on: false }; }
   const DUMSOR_FACTOR = 0.6;
   function rates(h, d, c, dn) {
     const cut = dn !== undefined && h >= 18 && dumsorDay(dn);
     let inc = c.job ? 0 : WAGE / 24, cost = c.rentDay / 24 + (c.living === undefined ? LIVING : c.living) / 24;
     const working = c.job && CATALOG[c.job.g].at(h, d) > 0;
-    if (working) inc += hourPay(c.job.g, d) * (c.jobPm || 1);
+    if (working) inc += hourPay(c.job.g, d) * (c.jobPm || 1); else if (c.job) inc += SIDE_HR;
     if (c.car && !working) { const v = CARS[c.car], g = v.at(h); if (g > 0) { inc += g; cost += v.run; } }
     for (const b of c.blds) {
       const def = CATALOG[b.k]; cost += def.upkeep / 24;
@@ -405,7 +424,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
     return p;
   }
 
-  const api = { LAW, POLICE, PRISONS, countNear, policeCover, raidRisk, nearestPolice, prisons, N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, LIVING, LIVING_ITEMS, FURNISH_COST, FURNISH_BOOST, FOUND_COST, PAY_MIN, PAY_MAX, MAYOR_PAY, CARS, payMul, ROAD, LAND, CATALOG, TIERS, CIVIC, ZONES, key, blankGrid, makeWorld, setLand, delLand, reindex, hash,
+  const api = { SIDE_HR, shiftInfo, BACKGROUNDS, AVATAR_MAX, cleanAvatar, rollBackground, LAW, POLICE, PRISONS, countNear, policeCover, raidRisk, nearestPolice, prisons, N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, LIVING, LIVING_ITEMS, FURNISH_COST, FURNISH_BOOST, FOUND_COST, PAY_MIN, PAY_MAX, MAYOR_PAY, CARS, payMul, ROAD, LAND, CATALOG, TIERS, CIVIC, ZONES, key, blankGrid, makeWorld, setLand, delLand, reindex, hash,
     zoneOf, nearRoad, intactRoad, landPrice, rentDaily, leaseCost, fmt, seedWorld, initCivic, census, rates, dumsorAt, FOOD, FEED_CAP, OWNER_SHARE, HUNGRY_FACTOR, STAFF_FLOOR, openN, DUMSOR_FACTOR, projectDay, setJob, workersAt, jobValid, openJobs, hourPay, dayYield, netWorth, settle, expireDue, plan, perform, clamp };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Rules = api;
 })(typeof self !== 'undefined' ? self : this);

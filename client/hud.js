@@ -67,13 +67,15 @@ function refreshDock() {
 
 // ---------- toast ----------
 const toastEl = $('toast'); let toastTimer = 0;
+toastEl.addEventListener('click', () => { toastEl.classList.remove('show'); });
 function toast(msg, kind) {
   toastEl.className = 'glass show ' + (kind || 'err'); toastEl.textContent = msg;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2800);
 }
 
 // ---------- HUD ----------
-let lastBrand = '';
+let lastHintHtml = '', lastBrand = '', warnHid = '', warnShown = null, hintClosed = false;
+try { hintClosed = localStorage.getItem('cb-hint-x') === '1'; } catch (e) {}
 function refreshStats() {
   S = cen(); S.roads = roadCount;
   const dow = new Date(now()).getUTCDay(), pr = projectDay(S, dow);
@@ -88,7 +90,9 @@ function refreshStats() {
   else if (R.dumsorAt(ts).on) { const u = new Date(R.dumsorAt(ts).until); msg = '! Dumsor: power cut until midnight, shops and clubs earn 40% less'; }
   else if (me.fedUntil !== undefined && me.fedUntil < ts) msg = '! Hungry: income halved. Open the Food tab and eat';
   else if (S.unconnected) msg = S.unconnected > 1 ? `! ${S.unconnected} buildings need a road` : '! 1 building needs a road';
-  w.style.display = msg ? 'flex' : 'none'; w.textContent = msg;
+  if (msg && msg === warnHid) msg = '';
+  w.style.display = msg ? 'flex' : 'none'; if (msg !== warnShown) { warnShown = msg; w.innerHTML = ''; const sp = document.createElement('span'); sp.textContent = msg; const bx = document.createElement('button'); bx.className = 'x'; bx.textContent = '×'; bx.setAttribute('aria-label', 'Dismiss'); w.append(sp, bx); }
+  updateEnergy(ts); updateShift(ts);
   refreshDock(); updateGuide();
   const day = Math.floor((ts - me.born) / DAYMS) + 1, nm = `${me.name} · Day ${day}`; if (nm !== lastBrand) { lastBrand = nm; $('brand').querySelector('b').textContent = nm; }
 }
@@ -96,15 +100,16 @@ function updateGuide() {
   const own = S.own + S.rent + S.lease > 0, house = S.blds.some(b => b.k === 'house'), road = S.blds.some(b => b.k === 'house' && b.ok);
   const steps = [['Get a plot of land', 'Tap Land, choose Buy, then tap a grass tile', own], ['Build a house on it', 'Tap Build, pick House, tap your plot', house], ['Get a working road next to it', 'Tap Road: repair a cracked road or lay a new one beside the house', road]];
   const el = $('hint');
-  if (own && house && road || S.built > 3) { el.style.opacity = 0; el.style.pointerEvents = 'none'; return; }
+  if (hintClosed || own && house && road || S.built > 3) { el.style.opacity = 0; el.style.pointerEvents = 'none'; return; }
   el.style.opacity = 1; const cur = steps.findIndex(s => !s[2]);
-  el.innerHTML = `<b>Welcome.</b> You start with ${fmt(START_MONEY)}. Earnings come in real time (Ghana time), so every cedi counts.<ul>` +
+  const html = `<button class="x" data-close="1" aria-label="Close">×</button><b>Welcome.</b> You start with ${fmt(START_MONEY)}. Earnings come in real time (Ghana time), so every cedi counts.<ul>` +
     steps.map((s, i) => `<li class="${s[2] ? 'done' : i === cur ? 'now' : ''}"><i>${s[2] ? '✓' : i + 1}</i><span>${s[0]}${i === cur ? `<br><small style="color:var(--muted)">${s[1]}</small>` : ''}</span></li>`).join('') + '</ul>';
+  if (html !== lastHintHtml) { lastHintHtml = html; el.innerHTML = html; }
 }
 
 // ---------- the pull-down Market sheet ----------
 const sheet = $('sheet'), scrim = $('scrim'), panel = $('panel'); let sheetOpen = false, tab = 'build', openedAt = 0;
-const TABS = [['build', 'Build', 'build'], ['land', 'Land', 'land'], ['mine', 'My Properties', 'mine'], ['jobs', 'Jobs', 'jobs'], ['food', 'Food', 'shop'], ['city', 'City', 'players'], ['players', 'Players', 'players']];
+const TABS = [['me', 'Me', 'players'], ['build', 'Build', 'build'], ['land', 'Land', 'land'], ['mine', 'My Properties', 'mine'], ['jobs', 'Jobs', 'jobs'], ['food', 'Food', 'shop'], ['city', 'City', 'players'], ['players', 'Players', 'players']];
 let boardRows = null;
 function setSheet(open) {
   sheetOpen = open; if (open) openedAt = performance.now(); sheet.style.transform = ''; sheet.classList.toggle('open', open); scrim.classList.toggle('show', open);
@@ -115,7 +120,7 @@ function renderSheet() {
   const st = panel.scrollTop;
   if (tab === 'players' && !boardRows) sendMsg({ t: 'board' });
   if (tab === 'city' && !election.week && election.week !== 0 && !election.ask) { election.ask = 1; sendMsg({ t: 'sync' }); }
-  panel.innerHTML = tab === 'build' ? panelBuild() : tab === 'land' ? panelLand() : tab === 'players' ? panelPlayers() : tab === 'jobs' ? panelJobs() : tab === 'food' ? panelFood() : tab === 'city' ? panelCity() : panelMine();
+  panel.innerHTML = tab === 'me' ? panelMe() : tab === 'build' ? panelBuild() : tab === 'land' ? panelLand() : tab === 'players' ? panelPlayers() : tab === 'jobs' ? panelJobs() : tab === 'food' ? panelFood() : tab === 'city' ? panelCity() : panelMine();
   panel.scrollTop = st;
 }
 const hoursLine = k => CATALOG[k].hours;
@@ -171,7 +176,7 @@ function panelMine() {
 function panelJobs() {
   const esc = t => String(t).replace(/</g, '&lt;');
   const jobNow = C0().job;
-  let h = `<div class="help">Everyone pays about <b>${fmt(R.LIVING)}</b> a day for transport and utilities, and must eat (Food tab) or income is halved. With no job you earn ${fmt(R.WAGE)} a day from odd jobs. A job pays more, and the owner pays your salary while the place is open.</div>`;
+  let h = `<div class="help">Everyone pays about <b>${fmt(R.LIVING)}</b> a day for transport and utilities, and must eat (Food tab) or income is halved. With no job you earn ${fmt(R.WAGE)} a day from odd jobs. A job pays more, and the owner pays your salary while the place is open. Off shift, a side hustle earns ${fmt(R.SIDE_HR)} an hour.</div>`;
   if (jobNow) {
     const d = CATALOG[jobNow.g], L = landOf(jobNow.k % N, (jobNow.k / N) | 0);
     h += `<div class="sum"><div><span>Your job</span><b>${d.name}</b></div><div><span>Pay</span><b>${fmt(d.sal)}/day</b></div><div><span>Employer</span><b>${L && L.o ? esc(nameOf(L.o)) : 'City'}</b></div></div>` +
@@ -187,6 +192,98 @@ function panelJobs() {
   return h;
 }
 const C0 = () => cen();
+// ---------- avatar and room ----------
+const SKIN = ['#f1c9a5', '#e0ac7e', '#c68642', '#a0693a', '#7a4a2a', '#4b2e1c'], HAIRC = ['#1a1a1a', '#3b2314', '#6b4226', '#b5651d', '#bdbdbd', '#7b2cbf'], OUTC = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#f1f5f9'];
+const HAIRN = ['Low cut', 'Afro', 'Long braids', 'Bun', 'Bald'];
+function avatarSVG(av) {
+  av = av || { g: 0, s: 2, h: 0, c: 0, o: 1 }; const sk = SKIN[av.s], hc = HAIRC[av.c], oc = OUTC[av.o], f = av.g === 1;
+  let hairBack = '', hairFront = '';
+  if (av.h === 1) hairBack = `<circle cx="32" cy="25" r="19" fill="${hc}"/>`;
+  else if (av.h === 2) hairBack = `<path d="M13 26q0-17 19-17t19 17v30h-8V30H21v26h-8z" fill="${hc}"/>`;
+  else if (av.h === 3) hairBack = `<circle cx="32" cy="7" r="7" fill="${hc}"/>`;
+  if (av.h === 0) hairFront = `<path d="M17 24q0-14 15-14t15 14q-8-7-15-7t-15 7z" fill="${hc}"/>`;
+  else if (av.h === 1) hairFront = `<path d="M16 26q0-13 16-13t16 13q-6-8-16-8t-16 8z" fill="${hc}"/>`;
+  else if (av.h === 2 || av.h === 3) hairFront = `<path d="M17 26q0-15 15-15t15 15q-9-8-15-8t-15 8z" fill="${hc}"/>`;
+  const body = f ? `<path d="M18 70q0-17 14-17t14 17v8H18z" fill="${oc}"/>` : `<path d="M14 78v-8q0-17 18-17t18 17v8z" fill="${oc}"/>`;
+  return `<svg viewBox="0 0 64 80" xmlns="http://www.w3.org/2000/svg">${hairBack}${body}<rect x="28" y="42" width="8" height="12" rx="3" fill="${sk}"/><ellipse cx="32" cy="30" rx="13" ry="15" fill="${sk}"/>${hairFront}<circle cx="27" cy="31" r="1.6" fill="#1b1b1b"/><circle cx="37" cy="31" r="1.6" fill="#1b1b1b"/>${f ? '<path d="M24.5 28.5l-2-1M39.5 28.5l2-1" stroke="#1b1b1b" stroke-width="1" stroke-linecap="round"/>' : ''}<path d="M28 38q4 3.5 8 0" stroke="#7a2e2e" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>`;
+}
+function roomSVG(av, lvl, hasHome, hr) {
+  const night = hr < 6 || hr >= 19, sky = night ? '#0f1b3d' : '#7ec8f5', wall = night ? '#3a3350' : '#e9d8b4', floor = night ? '#4a3a2a' : '#b98a5a';
+  let s = `<svg viewBox="0 0 320 190" xmlns="http://www.w3.org/2000/svg"><rect width="320" height="190" fill="${wall}"/><rect y="140" width="320" height="50" fill="${floor}"/>`;
+  s += `<rect x="215" y="30" width="80" height="70" rx="4" fill="${sky}" stroke="#6b5233" stroke-width="5"/>${night ? '<circle cx="270" cy="52" r="9" fill="#f5f0c8"/><circle cx="232" cy="48" r="1.4" fill="#fff"/><circle cx="250" cy="82" r="1.4" fill="#fff"/>' : '<circle cx="272" cy="52" r="11" fill="#ffd54a"/>'}<path d="M255 30v70M215 65h80" stroke="#6b5233" stroke-width="3"/>`;
+  s += hasHome ? `<rect x="14" y="112" width="92" height="34" rx="5" fill="#5b7bd5"/><rect x="14" y="104" width="30" height="20" rx="6" fill="#f4f4f4"/><rect x="10" y="100" width="6" height="50" fill="#6b4a2a"/>` : `<rect x="14" y="132" width="92" height="14" rx="4" fill="#9aa5b1"/><text x="14" y="124" fill="#555" font-size="10">Shared room: no home yet</text>`;
+  if (lvl >= 1) s += `<ellipse cx="160" cy="165" rx="60" ry="12" fill="#c0392b" opacity=".85"/><rect x="118" y="70" width="60" height="38" rx="3" fill="#111"/><rect x="122" y="74" width="52" height="30" fill="${night ? '#5fb0ff' : '#2a2a2a'}"/><rect x="140" y="108" width="16" height="30" fill="#6b4a2a"/>`;
+  if (lvl >= 2) s += `<rect x="296" y="108" width="8" height="40" fill="#6b4a2a"/><path d="M290 108h20l-4-16h-12z" fill="#ffd54a"/><circle cx="196" cy="128" r="12" fill="#2e8b57"/><rect x="192" y="136" width="8" height="12" fill="#8b5a2b"/>`;
+  return s + `<svg x="128" y="${lvl >= 1 ? 68 : 76}" width="62" height="78" viewBox="0 0 64 80">${avatarSVG(av).replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')}</svg></svg>`;
+}
+function bar(label, pct, col, txt) { return `<div class="bar"><span>${label} <b>${txt}</b></span><i><u style="width:${Math.max(2, Math.min(100, pct))}%;background:${col}"></u></i></div>`; }
+function energyPct(ts) { return Math.max(0, Math.min(1, ((me.fedUntil || 0) - ts) / (R.FEED_CAP || 72 * 3600000))); }
+function updateEnergy(ts) {
+  const p = energyPct(ts), bar = $('enBar'); if (!bar) return;
+  bar.style.width = Math.max(4, p * 100) + '%'; bar.style.background = p > .35 ? '#22c55e' : p > .12 ? '#f59e0b' : '#ef4444';
+  const h = Math.max(0, ((me.fedUntil || 0) - ts) / 3600000); $('enTxt').textContent = h >= 1 ? Math.floor(h) + 'h' : h > 0 ? '<1h' : 'Hungry';
+}
+// ---------- shift: workplace card, time left to clock out ----------
+const fmtDur = ms => { const m = Math.max(0, Math.ceil(ms / 60000)); return m >= 60 ? Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm' : m + 'm'; };
+const hhmm = t => { const d = new Date(t); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
+function shiftState(ts) { const j = C0().job; if (!j) return null; const s = R.shiftInfo(j, ts); return s ? Object.assign({ j, d: CATALOG[j.g], s }, {}) : null; }
+function updateShift(ts) {
+  const el = $('shift'), st = shiftState(ts); if (!st) { el.className = 'glass pill'; if (shiftCardOpen) closeShiftCard(); return; }
+  const { s } = st; el.className = 'glass pill on ' + (s.on ? 'on' : 'off');
+  $('shTxt').textContent = s.on ? (s.end ? `On shift · ${fmtDur(s.end - ts)} left` : 'On shift · open 24h') : `Off shift · starts in ${s.end ? fmtDur(s.end - ts) : '?'}`;
+  if (shiftCardOpen) drawShiftCard(ts);
+}
+let shiftCardOpen = false; const scEl = $('shiftcard');
+function drawShiftCard(ts) {
+  const st = shiftState(ts); if (!st) return; const { j, d, s } = st, L = landOf(j.k % N, (j.k / N) | 0), boss = L && L.o ? esc2(nameOf(L.o)) : 'City';
+  const pct = s.on && s.end ? Math.round((ts - s.start) / (s.end - s.start) * 100) : s.on ? 50 : 0;
+  scEl.innerHTML = `<button class="sx" aria-label="Close">×</button><div class="wp">${svg(ICONS[j.g] ? j.g : 'house')}<div><h3>${s.on ? 'Your shift is on' : 'Off shift'}</h3><small>${d.name} · ${boss}</small></div></div>` +
+    (s.on ? `<div><b>${s.end ? fmtDur(s.end - ts) + ' left' : 'Open 24 hours'}</b> <small>${s.end ? 'until you clock out at ' + hhmm(s.end) : 'pay runs hourly while it is open'}</small></div><div class="pb"><u style="width:${pct}%"></u></div><small>Pay ${fmt(d.sal)}/day while open. After you clock out, your side hustle earns ${fmt(R.SIDE_HR)} an hour.</small>`
+      : `<div><b>Next shift in ${s.end ? fmtDur(s.end - ts) : '?'}</b> <small>${s.end ? 'at ' + hhmm(s.end) : ''}</small></div><small>Side hustle: ${fmt(R.SIDE_HR)} an hour while you are off shift.</small>`) +
+    `<button class="go" data-go="1">Show my workplace</button>`;
+}
+function openShiftCard() { shiftCardOpen = true; scEl.classList.add('show'); drawShiftCard(now()); }
+function closeShiftCard() { shiftCardOpen = false; scEl.classList.remove('show'); }
+scEl.addEventListener('click', e => { if (e.target.closest('.sx')) closeShiftCard(); else if (e.target.closest('[data-go]')) { const j = C0().job; if (j) { closeShiftCard(); focusTile(j.k % N, (j.k / N) | 0); } } });
+$('shift').addEventListener('click', () => shiftCardOpen ? closeShiftCard() : openShiftCard());
+function morningShift() {   // on sign-in during a shift: open the workplace and show the clock-out time
+  const ts = now(), st = shiftState(ts); if (!st || !st.s.on) return;
+  let seen = ''; try { seen = sessionStorage.getItem('cb-shift') || ''; } catch (e) {} const id = me.id + ':' + st.s.start; if (seen === id) return;
+  try { sessionStorage.setItem('cb-shift', id); } catch (e) {}
+  focusTile(st.j.k % N, (st.j.k / N) | 0); openShiftCard();
+}
+function panelMe() {
+  const ts = now(), hr = (new Date(ts).getUTCHours()), bg = R.BACKGROUNDS[me.bg || 'mid'] || R.BACKGROUNDS.mid, pr = projectDay(S, new Date(ts).getUTCDay());
+  let lvl = 0, home = false; for (const k of (world.byOwner[me.id] || [])) { const g = world.grid[(k / N) | 0][k % N]; if (g === 'house') { home = true; lvl = Math.max(lvl, world.land[k].f || 0); } }
+  const en = energyPct(ts), left = Math.max(0, ((me.fedUntil || 0) - ts) / 3600000), du = R.dumsorAt(ts), job = C0().job;
+  return `<div class="room">${roomSVG(me.av, lvl, home, hr)}</div>
+    <div class="bars">${bar('Energy (food)', en * 100, en > .35 ? '#22c55e' : en > .12 ? '#f59e0b' : '#ef4444', left >= 1 ? Math.floor(left) + 'h left' : 'Hungry: income halved')}
+    ${bar('Cash', Math.min(100, model.money / 200), '#fbbf24', fmt(model.money))}
+    ${bar('Power', du.on ? 40 : 100, du.on ? '#f87171' : '#60a5fa', du.on ? 'Dumsor: power cut' : 'On')}
+    ${bar('Home comfort', home ? 34 + lvl * 33 : 8, '#a78bfa', home ? (lvl ? 'Furnished level ' + lvl : 'Empty house') : 'No home')}</div>
+    <div class="sum"><div><span>Born</span><b>${bg.name}</b></div><div><span>Net per day</span><b>${pr.net >= 0 ? '+' : '-'}${fmt(Math.abs(pr.net))}</b></div><div><span>Job</span><b>${job ? CATALOG[job.g].name : 'None'}</b></div></div>
+    <div class="row"><div class="nm"><b>${esc2(me.name)}</b><small>${bg.story}</small></div><button data-act="look">Change look</button></div>`;
+}
+// ---------- character creator ----------
+const creatorEl = $('creator'); let draft = null;
+function drawCreator() {
+  $('cPrev').innerHTML = avatarSVG(draft);
+  const sw = (key, arr, label) => `<div class="cr"><span>${label}</span><div>${arr.map((c, i) => `<button class="sw ${draft[key] === i ? 'on' : ''}" data-k="${key}" data-i="${i}" style="background:${c}" aria-label="${label} ${i + 1}"></button>`).join('')}</div></div>`;
+  $('cOpts').innerHTML = `<div class="cr"><span>Gender</span><div>${['Male', 'Female'].map((n, i) => `<button class="${draft.g === i ? 'on' : ''}" data-k="g" data-i="${i}">${n}</button>`).join('')}</div></div>` + sw('s', SKIN, 'Skin tone') +
+    `<div class="cr"><span>Hairstyle</span><div>${HAIRN.map((n, i) => `<button class="${draft.h === i ? 'on' : ''}" data-k="h" data-i="${i}">${n}</button>`).join('')}</div></div>` + sw('c', HAIRC, 'Hair colour') + sw('o', OUTC, 'Outfit colour');
+}
+function openCreator(first) {
+  draft = Object.assign({ g: 0, s: 2, h: 0, c: 0, o: 1 }, me.av || {});
+  const bg = R.BACKGROUNDS[me.bg || 'mid'];
+  $('cStory').innerHTML = first ? `You were born into: <b>${bg.name}</b>. Starting cash <b>${fmt(bg.money)}</b>.<br>${bg.story}` : 'Change how your character looks. It is free.';
+  $('cErr').textContent = ''; $('cGo').textContent = first ? 'Enter the city' : 'Save look'; drawCreator(); creatorEl.classList.add('show'); setSheet(false);
+}
+$('cOpts').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (!b) return; draft[b.dataset.k] = +b.dataset.i; drawCreator(); });
+$('cGo').addEventListener('click', () => { $('cGo').disabled = true; sendMsg({ t: 'avatar', av: draft }); });
+handlers.avatarRes = m => { $('cGo').disabled = false; if (m.ok) { setTimeout(morningShift, 300); creatorEl.classList.remove('show'); if (sheetOpen) renderSheet(); } else $('cErr').textContent = m.msg || 'Could not save'; };
+$('energy').addEventListener('click', () => { tab = 'me'; setSheet(true); });
+$('hint').addEventListener('click', e => { if (e.target.closest('[data-close]')) { hintClosed = true; try { localStorage.setItem('cb-hint-x', '1'); } catch (er) {} $('hint').style.opacity = 0; $('hint').style.pointerEvents = 'none'; } });
+$('warn').addEventListener('click', e => { if (e.target.closest('.x')) { warnHid = warnShown; $('warn').style.display = 'none'; } });
 const esc2 = t => String(t).replace(/</g, '&lt;');
 function panelFood() {
   const ts = now(), left = (me.fedUntil || 0) - ts, hr = new Date(ts).getUTCHours(), dw = new Date(ts).getUTCDay();
@@ -268,6 +365,7 @@ panel.addEventListener('click', e => {
   else if (a === 'vote') sendMsg({ t: 'vote', for: +b.dataset.id });
   else if (a === 'found') { const n = prompt('Company name (3 to 24 letters)'); if (n) sendMsg({ t: 'company', name: n }); }
   else if (a === 'payUp' || a === 'payDown') { const c = world.companies[me.id]; if (c) sendMsg({ t: 'company', pay: Math.round((c.pay + (a === 'payUp' ? 0.1 : -0.1)) * 10) / 10 }); }
+  else if (a === 'look') openCreator(false);
   else if (a === 'go') { setSheet(false); focusTile(+b.dataset.x, +b.dataset.y); }
   else if (a === 'sell') { sendAct(+b.dataset.x, +b.dataset.y, { k: 'sell' }).then(r => { if (r.ok) { toast(`${r.done}${r.gain ? ' +' + fmt(r.gain) : ''}`, 'ok'); afterChange(); } else toast(r.msg); }); }
 });
@@ -458,6 +556,7 @@ handlers.init = m => {
   joinEl.classList.remove('show'); refreshWho();
   if (!started) { started = true; resize(); centerCamera(); selectTool('road'); setInterval(tick, 1000); requestAnimationFrame(frame); }
   refreshStats(); tickClock();
+  if (!m.you.av) openCreator(true); else setTimeout(morningShift, 600);
   if (m.away && Math.abs(m.away.gain) >= 1) { const hrs = m.away.ms / HOUR; setTimeout(() => toast(`Welcome back! ${m.away.gain >= 0 ? '+' : '-'}${fmt(Math.abs(m.away.gain))} while you were away (${hrs >= 48 ? Math.round(hrs / 24) + ' days' : Math.round(hrs) + ' hours'})`, 'info'), 600); }
 };
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { sendMsg({ t: 'sync' }); tick(); } });
