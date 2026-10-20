@@ -60,6 +60,11 @@ const server = http.createServer((req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
   if (pathname === '/health') { res.end('ok'); return; }
   if (pathname === '/stats' && !keyOk(new URL(req.url, 'http://x').searchParams.get('key'))) { res.writeHead(404); res.end('Not found'); return; }
+  if (pathname === '/three.min.js') {
+    try { const js = fs.readFileSync(path.join(path.dirname(CLIENT_FILE), 'three.min.js')); res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=86400' }); res.end(js); }
+    catch (e) { res.writeHead(404); res.end('Not found'); }
+    return;
+  }
   if (pathname !== '/' && pathname !== '/stats' && pathname !== '/index.html') { res.writeHead(404); res.end('Not found'); return; }
   if (pathname === '/stats') {
     const ps = Object.values(players), t = now(); let buildings = 0; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (CATALOG[world.grid[y][x]]) buildings++;

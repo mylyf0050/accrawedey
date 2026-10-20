@@ -111,3 +111,10 @@
 #shiftcard .pb{height:10px;border-radius:6px;background:rgba(255,255,255,.14);overflow:hidden}#shiftcard .pb u{display:block;height:100%;background:#22c55e;text-decoration:none;border-radius:6px}
 #shiftcard button.go{background:#22c55e;color:#04210f;border:0;border-radius:11px;padding:9px;font-weight:700;cursor:pointer}
 #shiftcard .wp svg{color:#cfe8ff;fill:currentColor}
+
+#c3{position:absolute;inset:0;width:100%;height:100%;display:none;touch-action:none;z-index:1}
+body.mode3d #c3{display:block}
+body.mode3d #c{visibility:hidden}
+#v3d{cursor:pointer;font-weight:700}
+#v3d.on{background:#22c55e;color:#04210f}
+body.mode3d #dock,body.mode3d #zoom,body.mode3d #hint{display:none!important}

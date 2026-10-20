@@ -43,7 +43,7 @@ function draw(t) {
 
 '''
 html+=L(488,502)+'\n'+L(504,511)+'\n'+rd('draw_mid.js')+L(549,555)+'\n'+rd('draw_hover.js')+'\n'+L(574,584)+'\n}\n\n'+L(592,615)
-html+=rd('hud.js')+'</script>\n</body>\n</html>\n'
+html+=rd('hud.js')+'\n'+rd('world3d.js')+'</script>\n</body>\n</html>\n'
 open('index.html','w').write(html)
 # syntax check
 js=html.split('<script>')[1].split('</script>')[0]

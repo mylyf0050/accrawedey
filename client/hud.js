@@ -197,15 +197,29 @@ const SKIN = ['#f1c9a5', '#e0ac7e', '#c68642', '#a0693a', '#7a4a2a', '#4b2e1c'],
 const HAIRN = ['Low cut', 'Afro', 'Long braids', 'Bun', 'Bald'];
 function avatarSVG(av) {
   av = av || { g: 0, s: 2, h: 0, c: 0, o: 1 }; const sk = SKIN[av.s], hc = HAIRC[av.c], oc = OUTC[av.o], f = av.g === 1;
+  const id = 'a' + [av.g, av.s, av.h, av.c, av.o].join('');
+  const dark = av.s >= 4, skS = dark ? '#000' : '#5a2d0c', hi = dark ? '#fff' : '#fff';
+  const defs = `<defs><linearGradient id="${id}k" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${sk}"/><stop offset="1" stop-color="${sk}"/><stop offset="1" stop-color="${skS}" stop-opacity=".28"/></linearGradient><radialGradient id="${id}f" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="${hi}" stop-opacity=".22"/><stop offset=".6" stop-color="${sk}" stop-opacity="0"/><stop offset="1" stop-color="${skS}" stop-opacity=".3"/></radialGradient><linearGradient id="${id}o" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${oc}"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></linearGradient><linearGradient id="${id}h" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient></defs>`;
+  const hair = d => `<path d="${d}" fill="${hc}"/><path d="${d}" fill="url(#${id}h)"/>`;
   let hairBack = '', hairFront = '';
-  if (av.h === 1) hairBack = `<circle cx="32" cy="25" r="19" fill="${hc}"/>`;
-  else if (av.h === 2) hairBack = `<path d="M13 26q0-17 19-17t19 17v30h-8V30H21v26h-8z" fill="${hc}"/>`;
-  else if (av.h === 3) hairBack = `<circle cx="32" cy="7" r="7" fill="${hc}"/>`;
-  if (av.h === 0) hairFront = `<path d="M17 24q0-14 15-14t15 14q-8-7-15-7t-15 7z" fill="${hc}"/>`;
-  else if (av.h === 1) hairFront = `<path d="M16 26q0-13 16-13t16 13q-6-8-16-8t-16 8z" fill="${hc}"/>`;
-  else if (av.h === 2 || av.h === 3) hairFront = `<path d="M17 26q0-15 15-15t15 15q-9-8-15-8t-15 8z" fill="${hc}"/>`;
-  const body = f ? `<path d="M18 70q0-17 14-17t14 17v8H18z" fill="${oc}"/>` : `<path d="M14 78v-8q0-17 18-17t18 17v8z" fill="${oc}"/>`;
-  return `<svg viewBox="0 0 64 80" xmlns="http://www.w3.org/2000/svg">${hairBack}${body}<rect x="28" y="42" width="8" height="12" rx="3" fill="${sk}"/><ellipse cx="32" cy="30" rx="13" ry="15" fill="${sk}"/>${hairFront}<circle cx="27" cy="31" r="1.6" fill="#1b1b1b"/><circle cx="37" cy="31" r="1.6" fill="#1b1b1b"/>${f ? '<path d="M24.5 28.5l-2-1M39.5 28.5l2-1" stroke="#1b1b1b" stroke-width="1" stroke-linecap="round"/>' : ''}<path d="M28 38q4 3.5 8 0" stroke="#7a2e2e" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>`;
+  if (av.h === 1) hairBack = `<circle cx="32" cy="24" r="20" fill="${hc}"/><circle cx="32" cy="24" r="20" fill="url(#${id}h)"/><g fill="${hc}"><circle cx="15" cy="30" r="4"/><circle cx="49" cy="30" r="4"/></g>`;
+  else if (av.h === 2) hairBack = hair('M12 28Q12 8 32 8t20 20v32h-9V32H21v28h-9z') + `<path d="M16 34v24M22 36v22M42 36v22M48 34v24" stroke="#000" stroke-opacity=".25" stroke-width="1"/>`;
+  else if (av.h === 3) hairBack = `<circle cx="32" cy="6.5" r="7.5" fill="${hc}"/><circle cx="32" cy="6.5" r="7.5" fill="url(#${id}h)"/><path d="M25 7q7 3 14 0" stroke="#000" stroke-opacity=".25" fill="none"/>`;
+  if (av.h === 0) hairFront = hair('M17.5 26Q16 9 32 9t14.5 17q-2-9-14.5-9T17.5 26z');
+  else if (av.h === 1) hairFront = hair('M15.5 27Q14 10 32 10t16.5 17q-4-10-16.5-10T15.5 27z');
+  else if (av.h === 2 || av.h === 3) hairFront = hair('M17 28Q15 10 32 10t15 18q-3-12-15-12T17 28z');
+  const ear = `<ellipse cx="18.8" cy="32" rx="2.4" ry="3.4" fill="${sk}"/><ellipse cx="45.2" cy="32" rx="2.4" ry="3.4" fill="${sk}"/>`;
+  const body = f ? `<path d="M17 80v-9q0-18 15-18t15 18v9z" fill="url(#${id}o)"/><path d="M26 53q6 8 12 0" fill="${sk}"/><path d="M26 53q6 9 12 0" stroke="#000" stroke-opacity=".2" fill="none"/>`
+    : `<path d="M11 80v-9q0-18 21-18t21 18v9z" fill="url(#${id}o)"/><path d="M25 53q7 10 14 0" fill="${sk}"/><path d="M25 53q7 11 14 0" stroke="#000" stroke-opacity=".25" fill="none"/>`;
+  const jewel = f ? `<circle cx="18.8" cy="36" r="1.2" fill="#ffd54a"/><circle cx="45.2" cy="36" r="1.2" fill="#ffd54a"/>` : '';
+  const eye = x => `<ellipse cx="${x}" cy="32" rx="2.6" ry="2.2" fill="#fff"/><circle cx="${x}" cy="32.2" r="1.5" fill="#2a1a10"><animate attributeName="ry" values="1.5;1.5;0.2;1.5" keyTimes="0;.9;.95;1" dur="4s" repeatCount="indefinite"/></circle><circle cx="${x + .6}" cy="31.5" r=".5" fill="#fff"/>`;
+  const brows = `<path d="M23.5 27.5q3-1.6 6 0M34.5 27.5q3-1.6 6 0" stroke="${hc}" stroke-width="${f ? 1 : 1.6}" fill="none" stroke-linecap="round"/>`;
+  const lash = f ? `<path d="M23.6 30.6l-1.4-1M40.4 30.6l1.4-1" stroke="#1b1b1b" stroke-width="1" stroke-linecap="round"/>` : '';
+  const nose = `<path d="M31 34.5q1 3 2 0" stroke="${skS}" stroke-opacity=".5" fill="none" stroke-linecap="round"/>`;
+  const cheeks = `<circle cx="23" cy="37" r="3" fill="#e8605a" opacity=".16"/><circle cx="41" cy="37" r="3" fill="#e8605a" opacity=".16"/>`;
+  const mouth = f ? `<path d="M28 40q4 3.4 8 0q-4 1.2-8 0z" fill="#b3363f"/>` : `<path d="M28 40q4 3 8 0" stroke="#7a2e2e" stroke-width="1.5" fill="none" stroke-linecap="round"/>`;
+  const idle = `<animateTransform attributeName="transform" type="translate" values="0 0;0 -.8;0 0" dur="3s" repeatCount="indefinite"/>`;
+  return `<svg viewBox="0 0 64 80" xmlns="http://www.w3.org/2000/svg">${defs}<ellipse cx="32" cy="79" rx="22" ry="2.2" fill="#000" opacity=".18"/><g>${idle}${hairBack}${body}<rect x="27" y="42" width="10" height="13" rx="4" fill="${sk}"/><rect x="27" y="42" width="10" height="5" fill="#000" opacity=".12"/>${ear}${jewel}<ellipse cx="32" cy="30" rx="13" ry="15" fill="${sk}"/><ellipse cx="32" cy="30" rx="13" ry="15" fill="url(#${id}f)"/>${hairFront}${brows}${eye(27)}${eye(37)}${lash}${nose}${cheeks}${mouth}</g></svg>`;
 }
 function roomSVG(av, lvl, hasHome, hr) {
   const night = hr < 6 || hr >= 19, sky = night ? '#0f1b3d' : '#7ec8f5', wall = night ? '#3a3350' : '#e9d8b4', floor = night ? '#4a3a2a' : '#b98a5a';

@@ -35,3 +35,6 @@ New buildings: Chop Bar, Trotro Station (appended to the type list so older save
 ## Shifts and side hustle
 - Employed players see an "On shift, Xh left" pill. Signing in during a shift opens a card with the workplace, the time left to clock out and a button to show it on the map.
 - Off shift, everyone with a job earns a side hustle of GH₵3 an hour.
+
+## 3D view
+Tap the 3D button (top bar) to switch the city to a Three.js 3D view; tap 2D to go back. 2D stays the default. Three.js is served from client/three.min.js and loads only when 3D is tapped.
