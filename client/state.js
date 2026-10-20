@@ -7,7 +7,7 @@ const { N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, ROAD, LAND, CATALOG, TI
 const fmtK = n => n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + 'M' : n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(Math.round(n));
 
 let world = R.makeWorld();
-const me = { id: 0, name: '', money: 0, t: 0, born: 0, jail: null, life: { hunger:72, energy:70, fun:55, social:45, hygiene:65, bladder:40 } }; window.meId=0; window.lifeState=me.life;
+const me = { id: 0, name: '', money: 0, t: 0, born: 0, jail: null };
 let timeOff = 0;                                   // server clock minus this device's clock: players cannot gain time by changing their clock
 const now = () => Date.now() + timeOff;
 let election = { week: -1, endsAt: 0, mayor: null, cands: [] }, ballot = 0;
@@ -35,9 +35,6 @@ function connect() {
   ws.onclose = () => { for (const [, f] of pending) f({ ok: false, msg: 'Connection lost' }); pending.clear(); handlers.status && handlers.status(false); setTimeout(connect, 2000); };
   ws.onerror = () => {};
 }
-function sendLifeAction(action) { return new Promise(res => { if (!ws || ws.readyState !== 1) return res({ok:false,msg:'Not connected to the city.'}); const rid=++reqId; pending.set(rid,res); sendMsg({t:'life',action,rid}); setTimeout(()=>{if(pending.delete(rid))res({ok:false,msg:'The city did not answer.'});},6000); }); }
-window.doLifeAction = async action => { const r=await sendLifeAction(action); if(r.life){ Object.assign(me.life,r.life); window.lifeState=me.life; } if(r.you){ me.money=r.you.money; me.t=r.you.ts; me.fedUntil=r.you.fed; } handlers.notice && handlers.notice({kind:r.ok?'ok':'err',msg:r.msg||'Done'}); return r; };
-window.sendLifePosition = (x,z) => sendMsg({t:'lifePos',x,z});
 function sendAct(x, y, tool) {
   return new Promise(res => {
     if (!ws || ws.readyState !== 1) return res({ ok: false, msg: 'Not connected to the city. Reconnecting...' });
@@ -62,17 +59,13 @@ function onMsg(m) {
     for (let i = 0; i < N * N; i++) { const g = TYPES[m.world.grid[i]] || 'empty'; world.grid[(i / N) | 0][i % N] = g; if (g === 'road') roadCount++; }
     world.land = {}; for (const k in m.world.land) world.land[k] = m.world.land[k];
     world.cracked = m.world.cracked; world.names = m.world.names; world.jobs = m.world.jobs || {}; world.companies = m.world.companies || {}; world.cars = m.world.cars || {}; R.reindex(world); R.initCivic(world);
-    me.bg = m.you.bg; me.av = m.you.av; Object.assign(me, { id: m.you.id, name: m.you.name, money: m.you.money, t: m.you.ts, born: m.you.born, jail: m.you.jail, fedUntil: m.you.fed }); if(m.you.life) Object.assign(me.life,m.you.life); window.meId=me.id; window.lifeState=me.life;
+    me.bg = m.you.bg; me.av = m.you.av; Object.assign(me, { id: m.you.id, name: m.you.name, money: m.you.money, t: m.you.ts, born: m.you.born, jail: m.you.jail, fedUntil: m.you.fed });
     timeOff = m.now - Date.now(); dirty();
     if (m.token) store.set('cb-token', m.token); store.set('cb-name', m.you.name);
     handlers.init && handlers.init(m);
-  } else if (m.t === 'lifeRes') { const f=pending.get(m.rid); pending.delete(m.rid); if(m.life)Object.assign(me.life,m.life); if(m.you){me.money=m.you.money;me.t=m.you.ts;me.fedUntil=m.you.fed;} window.lifeState=me.life; f&&f(m); handlers.life&&handlers.life(m); }
-  else if (m.t === 'lifePlayers') window.dispatchEvent(new CustomEvent('lifePlayers',{detail:m.list||[]}));
-  else if (m.t === 'lifePlayer') window.dispatchEvent(new CustomEvent('lifePlayer',{detail:m}));
-  else if (m.t === 'lifeGone') window.dispatchEvent(new CustomEvent('lifeGone',{detail:m.id}));
-  else if (m.t === 'res') { const f = pending.get(m.rid); pending.delete(m.rid); if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; if (m.you.fed !== undefined) me.fedUntil = m.you.fed; } f && f(m); }
+  } else if (m.t === 'res') { const f = pending.get(m.rid); pending.delete(m.rid); if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; if (m.you.fed !== undefined) me.fedUntil = m.you.fed; } f && f(m); }
   else if (m.t === 'tiles') { for (const tl of m.list) applyTile(tl, true); dirty(); handlers.changed && handlers.changed(); }
-  else if (m.t === 'you') { me.money = m.money; me.t = m.ts; me.jail = m.jail; if (m.fed !== undefined) me.fedUntil = m.fed; if (m.life) Object.assign(me.life,m.life); window.lifeState=me.life; if (m.now) timeOff = m.now - Date.now(); dirty(); }
+  else if (m.t === 'you') { me.money = m.money; me.t = m.ts; me.jail = m.jail; if (m.fed !== undefined) me.fedUntil = m.fed; if (m.now) timeOff = m.now - Date.now(); dirty(); }
   else if (m.t === 'jobs') { for (const e of m.list) R.setJob(world, e.p, e.j); dirty(); handlers.changed && handlers.changed(); }
   else if (m.t === 'avatarRes') { if (m.ok) me.av = m.av; handlers.avatarRes && handlers.avatarRes(m); }
   else if (m.t === 'cars') { for (const e of m.list) { if (e.c) world.cars[e.p] = e.c; else delete world.cars[e.p]; } dirty(); handlers.changed && handlers.changed(); }

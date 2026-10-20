@@ -204,20 +204,6 @@ body.lite .glass{-webkit-backdrop-filter:none;backdrop-filter:none;background:rg
 #shiftcard .pb{height:10px;border-radius:6px;background:rgba(255,255,255,.14);overflow:hidden}#shiftcard .pb u{display:block;height:100%;background:#22c55e;text-decoration:none;border-radius:6px}
 #shiftcard button.go{background:#22c55e;color:#04210f;border:0;border-radius:11px;padding:9px;font-weight:700;cursor:pointer}
 #shiftcard .wp svg{color:#cfe8ff;fill:currentColor}
-/* Accrawedey 3D Life layer */
-#life3d{position:fixed;inset:0;z-index:2;pointer-events:none;transition:opacity .25s}
-#world3d{position:absolute;inset:0;width:100%;height:100%;pointer-events:auto;touch-action:none}
-#world3d.off{opacity:0;pointer-events:none}
-#lifeBar{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top));transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:18px;pointer-events:auto;white-space:nowrap}
-#lifeBar b{font-size:12px;letter-spacing:.1em;color:#ffd166}#lifeBar span{font-size:12px;color:#c7d5e3}
-#lifeBar button{border:1px solid var(--stroke);background:rgba(255,255,255,.07);padding:7px 10px;border-radius:10px;font-size:11px}
-#lifePrompt{position:absolute;left:50%;bottom:110px;transform:translate(-50%,10px);opacity:0;padding:11px 15px;border-radius:14px;pointer-events:none;transition:.2s;font-size:13px}
-#lifePrompt.show{opacity:1;transform:translate(-50%,0)}
-#lifeControls{position:absolute;right:14px;bottom:112px;padding:9px 12px;border-radius:12px;color:#a9bbcd;font-size:11px;pointer-events:none}
-#lifeControls b{color:#fff}
-@media(max-width:720px){#lifeBar{max-width:calc(100% - 20px);overflow:hidden}#lifeBar b{display:none}#lifeControls{display:none}}
-
-#lifeNeeds{position:absolute;left:14px;bottom:112px;padding:11px 13px;border-radius:15px;display:grid;gap:5px;min-width:125px;pointer-events:none;background:rgba(7,15,26,.82)}#lifeNeeds>b{font-size:10px;letter-spacing:.12em;color:#ffd166;margin-bottom:2px}#lifeNeeds span{font-size:11px;color:#d3dfeb}#lifeNeeds span::before{content:"• ";color:#6ea8ff}@media(max-width:720px){#lifeNeeds{left:10px;bottom:82px;min-width:110px}}
 </style>
 </head>
 <body>
@@ -257,12 +243,6 @@ body.lite .glass{-webkit-backdrop-filter:none;backdrop-filter:none;background:rg
   <div class="tabs" id="tabs"></div>
   <div id="panel"></div>
   <div id="grab"><i></i><span>Drag up to close</span></div>
-</div>
-<div id="life3d" aria-label="Accrawedey 3D world">
-  <canvas id="world3d"></canvas>
-  <div id="lifeBar" class="glass"><b>Accrawedey</b><span id="lifeDistrict">Accra · Free roam</span><button id="worldMap">Explore</button><button id="worldMode">City Builder</button></div>
-  <div id="lifePrompt" class="glass"></div><div id="lifeNeeds" class="glass"><b>MY LIFE</b><span id="needH">Hunger 72</span><span id="needE">Energy 70</span><span id="needF">Fun 55</span><span id="needS">Social 45</span></div>
-  <div id="lifeControls" class="glass"><b>WASD</b> move · <b>drag</b> orbit · <b>wheel</b> zoom · <b>E</b> interact</div>
 </div>
 
 <script>
@@ -706,7 +686,7 @@ const { N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, ROAD, LAND, CATALOG, TI
 const fmtK = n => n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + 'M' : n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(Math.round(n));
 
 let world = R.makeWorld();
-const me = { id: 0, name: '', money: 0, t: 0, born: 0, jail: null, life: { hunger:72, energy:70, fun:55, social:45, hygiene:65, bladder:40 } }; window.meId=0; window.lifeState=me.life;
+const me = { id: 0, name: '', money: 0, t: 0, born: 0, jail: null };
 let timeOff = 0;                                   // server clock minus this device's clock: players cannot gain time by changing their clock
 const now = () => Date.now() + timeOff;
 let election = { week: -1, endsAt: 0, mayor: null, cands: [] }, ballot = 0;
@@ -734,9 +714,6 @@ function connect() {
   ws.onclose = () => { for (const [, f] of pending) f({ ok: false, msg: 'Connection lost' }); pending.clear(); handlers.status && handlers.status(false); setTimeout(connect, 2000); };
   ws.onerror = () => {};
 }
-function sendLifeAction(action) { return new Promise(res => { if (!ws || ws.readyState !== 1) return res({ok:false,msg:'Not connected to the city.'}); const rid=++reqId; pending.set(rid,res); sendMsg({t:'life',action,rid}); setTimeout(()=>{if(pending.delete(rid))res({ok:false,msg:'The city did not answer.'});},6000); }); }
-window.doLifeAction = async action => { const r=await sendLifeAction(action); if(r.life){ Object.assign(me.life,r.life); window.lifeState=me.life; } if(r.you){ me.money=r.you.money; me.t=r.you.ts; me.fedUntil=r.you.fed; } handlers.notice && handlers.notice({kind:r.ok?'ok':'err',msg:r.msg||'Done'}); return r; };
-window.sendLifePosition = (x,z) => sendMsg({t:'lifePos',x,z});
 function sendAct(x, y, tool) {
   return new Promise(res => {
     if (!ws || ws.readyState !== 1) return res({ ok: false, msg: 'Not connected to the city. Reconnecting...' });
@@ -761,17 +738,13 @@ function onMsg(m) {
     for (let i = 0; i < N * N; i++) { const g = TYPES[m.world.grid[i]] || 'empty'; world.grid[(i / N) | 0][i % N] = g; if (g === 'road') roadCount++; }
     world.land = {}; for (const k in m.world.land) world.land[k] = m.world.land[k];
     world.cracked = m.world.cracked; world.names = m.world.names; world.jobs = m.world.jobs || {}; world.companies = m.world.companies || {}; world.cars = m.world.cars || {}; R.reindex(world); R.initCivic(world);
-    me.bg = m.you.bg; me.av = m.you.av; Object.assign(me, { id: m.you.id, name: m.you.name, money: m.you.money, t: m.you.ts, born: m.you.born, jail: m.you.jail, fedUntil: m.you.fed }); if(m.you.life) Object.assign(me.life,m.you.life); window.meId=me.id; window.lifeState=me.life;
+    me.bg = m.you.bg; me.av = m.you.av; Object.assign(me, { id: m.you.id, name: m.you.name, money: m.you.money, t: m.you.ts, born: m.you.born, jail: m.you.jail, fedUntil: m.you.fed });
     timeOff = m.now - Date.now(); dirty();
     if (m.token) store.set('cb-token', m.token); store.set('cb-name', m.you.name);
     handlers.init && handlers.init(m);
-  } else if (m.t === 'lifeRes') { const f=pending.get(m.rid); pending.delete(m.rid); if(m.life)Object.assign(me.life,m.life); if(m.you){me.money=m.you.money;me.t=m.you.ts;me.fedUntil=m.you.fed;} window.lifeState=me.life; f&&f(m); handlers.life&&handlers.life(m); }
-  else if (m.t === 'lifePlayers') window.dispatchEvent(new CustomEvent('lifePlayers',{detail:m.list||[]}));
-  else if (m.t === 'lifePlayer') window.dispatchEvent(new CustomEvent('lifePlayer',{detail:m}));
-  else if (m.t === 'lifeGone') window.dispatchEvent(new CustomEvent('lifeGone',{detail:m.id}));
-  else if (m.t === 'res') { const f = pending.get(m.rid); pending.delete(m.rid); if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; if (m.you.fed !== undefined) me.fedUntil = m.you.fed; } f && f(m); }
+  } else if (m.t === 'res') { const f = pending.get(m.rid); pending.delete(m.rid); if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; if (m.you.fed !== undefined) me.fedUntil = m.you.fed; } f && f(m); }
   else if (m.t === 'tiles') { for (const tl of m.list) applyTile(tl, true); dirty(); handlers.changed && handlers.changed(); }
-  else if (m.t === 'you') { me.money = m.money; me.t = m.ts; me.jail = m.jail; if (m.fed !== undefined) me.fedUntil = m.fed; if (m.life) Object.assign(me.life,m.life); window.lifeState=me.life; if (m.now) timeOff = m.now - Date.now(); dirty(); }
+  else if (m.t === 'you') { me.money = m.money; me.t = m.ts; me.jail = m.jail; if (m.fed !== undefined) me.fedUntil = m.fed; if (m.now) timeOff = m.now - Date.now(); dirty(); }
   else if (m.t === 'jobs') { for (const e of m.list) R.setJob(world, e.p, e.j); dirty(); handlers.changed && handlers.changed(); }
   else if (m.t === 'avatarRes') { if (m.ok) me.av = m.av; handlers.avatarRes && handlers.avatarRes(m); }
   else if (m.t === 'cars') { for (const e of m.list) { if (e.c) world.cars[e.p] = e.c; else delete world.cars[e.p]; } dirty(); handlers.changed && handlers.changed(); }
@@ -2030,92 +2003,6 @@ connect();
 handlers.panel = () => { if (sheetOpen) renderSheet(); };
 handlers.simple = m => { toast(m.msg, m.ok ? 'ok' : undefined); if (sheetOpen) renderSheet(); };
 handlers.gift = m => { toast(m.msg, m.ok ? 'ok' : undefined); if (m.ok) afterChange(); };
-
-/* Accrawedey 3D Life World — lightweight WebGL, no external engine. */
-(() => {
-  const canvas=document.getElementById('world3d'); if(!canvas) return;
-  const hud=document.getElementById('life3d'), districtEl=document.getElementById('lifeDistrict'), promptEl=document.getElementById('lifePrompt');
-  const modeBtn=document.getElementById('worldMode'), mapBtn=document.getElementById('worldMap');
-  const gl=canvas.getContext('webgl',{antialias:true,alpha:false}); if(!gl){return;}
-  const vs=`attribute vec3 p;uniform mat4 mvp;void main(){gl_Position=mvp*vec4(p,1.0);}`;
-  const fs=`precision mediump float;uniform vec3 c;void main(){gl_FragColor=vec4(c,1.0);}`;
-  const prog=gl.createProgram(), sh=(type,src)=>{const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);return s;};
-  gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(prog);gl.useProgram(prog);
-  const locP=gl.getAttribLocation(prog,'p'), locM=gl.getUniformLocation(prog,'mvp'), locC=gl.getUniformLocation(prog,'c');
-  const cube=new Float32Array([-1,-1,-1,1,-1,-1,1,1,-1,-1,1,-1,-1,-1,1,1,-1,1,1,1,1,-1,1,1]);
-  const idx=new Uint16Array([0,1,2,0,2,3,4,6,5,4,7,6,0,4,5,0,5,1,3,2,6,3,6,7,1,5,6,1,6,2,0,3,7,0,7,4]);
-  const vb=gl.createBuffer(), ib=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bufferData(gl.ARRAY_BUFFER,cube,gl.STATIC_DRAW);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);gl.enableVertexAttribArray(locP);gl.vertexAttribPointer(locP,3,gl.FLOAT,false,0,0);
-  const mat=(a)=>{const [sx,sy,sz,tx,ty,tz]=a;return new Float32Array([sx,0,0,0,0,sy,0,0,0,0,sz,0,tx,ty,tz,1]);};
-  // Named Greater Accra locations. These are gameplay districts/landmarks, not generic blocks.
-  const sites=[
-    {id:'jamestown',name:'Jamestown',type:'Culture',x:-16,z:14,color:[.58,.34,.18],act:'culture'},
-    {id:'makola',name:'Makola Market',type:'Food & Market',x:-10,z:12,color:[.72,.33,.18],act:'eat'},
-    {id:'adabraka',name:'Adabraka',type:'Residential',x:-5,z:11,color:[.30,.38,.55],act:'social'},
-    {id:'ridge',name:'Ridge',type:'Civic & Business',x:1,z:12,color:[.24,.39,.58],act:'work'},
-    {id:'osu',name:'Osu · Oxford Street',type:'Social & Nightlife',x:8,z:10,color:[.18,.42,.72],act:'social'},
-    {id:'labone',name:'Labone',type:'Lifestyle',x:14,z:7,color:[.43,.30,.57],act:'relax'},
-    {id:'cantonments',name:'Cantonments',type:'Residential',x:19,z:11,color:[.35,.43,.62],act:'sleep'},
-    {id:'airport',name:'Airport City',type:'Work & Business',x:14,z:1,color:[.22,.38,.62],act:'work'},
-    {id:'airportres',name:'Airport Residential Area',type:'Residential',x:9,z:-3,color:[.37,.31,.56],act:'sleep'},
-    {id:'romanridge',name:'Roman Ridge',type:'Residential',x:3,z:-3,color:[.34,.39,.54],act:'sleep'},
-    {id:'ach',name:'Achimota',type:'Education & Residential',x:-7,z:-2,color:[.25,.48,.38],act:'culture'},
-    {id:'circle',name:'Circle · Kwame Nkrumah Circle',type:'Transport',x:-16,z:3,color:[.75,.55,.12],act:'travel'},
-    {id:'kaneshie',name:'Kaneshie',type:'Market & Transport',x:-22,z:-2,color:[.62,.38,.19],act:'eat'},
-    {id:'dansoman',name:'Dansoman',type:'Residential',x:-25,z:-10,color:[.34,.47,.37],act:'social'},
-    {id:'labadi',name:'Labadi Beach',type:'Leisure',x:15,z:-11,color:[.10,.48,.46],act:'relax'},
-    {id:'la',name:'La',type:'Coastal Community',x:9,z:-9,color:[.38,.43,.31],act:'social'},
-    {id:'teshie',name:'Teshie',type:'Residential',x:23,z:-12,color:[.39,.35,.50],act:'social'},
-    {id:'nungua',name:'Nungua',type:'Market & Residential',x:28,z:-7,color:[.62,.40,.20],act:'eat'},
-    {id:'spintex',name:'Spintex',type:'Commerce & Industry',x:25,z:2,color:[.35,.42,.48],act:'work'},
-    {id:'eastlegon',name:'East Legon',type:'Home & Lifestyle',x:-1,z:-11,color:[.42,.28,.58],act:'sleep'},
-    {id:'shiashie',name:'Shiashie',type:'Business & Lifestyle',x:-7,z:-14,color:[.26,.45,.56],act:'work'},
-    {id:'madina',name:'Madina',type:'Market & Transport',x:-14,z:-16,color:[.65,.38,.18],act:'eat'},
-    {id:'legon',name:'Legon · University Area',type:'Education',x:-2,z:-19,color:[.22,.48,.35],act:'culture'},
-    {id:'northlegon',name:'North Legon',type:'Residential',x:7,z:-18,color:[.34,.30,.55],act:'sleep'},
-    {id:'hisa',name:'Haatso',type:'Residential',x:-21,z:-20,color:[.31,.44,.35],act:'social'},
-    {id:'westlands',name:'Westlands',type:'Business & Lifestyle',x:8,z:17,color:[.27,.39,.58],act:'work'},
-    {id:'kokomlemle',name:'Kokomlemle',type:'Residential & Social',x:-9,z:18,color:[.44,.35,.49],act:'social'},
-    {id:'tesano',name:'Tesano',type:'Residential',x:-19,z:18,color:[.31,.43,.48],act:'sleep'},
-    {id:'abeka',name:'Abeka',type:'Residential',x:-25,z:13,color:[.31,.48,.36],act:'social'},
-    {id:'tema',name:'Tema',type:'Port & Industrial City',x:29,z:16,color:[.32,.40,.46],act:'work'},
-    {id:'tema_comm',name:'Tema Community 1',type:'Residential & Market',x:25,z:21,color:[.50,.40,.26],act:'eat'},
-    {id:'prampram',name:'Prampram',type:'Coastal Leisure',x:29,z:-21,color:[.14,.46,.42],act:'relax'},
-    {id:'trotro',name:'Trotro Interchange',type:'Transport',x:0,z:2,color:[.75,.55,.12],act:'travel'}
-  ];
-  const pos={x:0,z:0}, keys={}, others=new Map(); let yaw=.55,pitch=.62,dist=14,dragging=false,lx=0,ly=0,lastSend=0,lastAct=0,active=true,clock={};
-  const life=()=>window.lifeState||{hunger:72,energy:70,fun:55,social:45,hygiene:65,bladder:40};
-  const act=(a)=>{if(window.doLifeAction)window.doLifeAction(a);};
-  function toast(t){if(!promptEl)return;promptEl.textContent=t;promptEl.classList.add('show');clearTimeout(promptEl._t);promptEl._t=setTimeout(()=>promptEl.classList.remove('show'),2400);}
-  function resize(){const d=Math.min(2,devicePixelRatio||1),w=Math.floor(innerWidth*d),h=Math.floor(innerHeight*d);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h)}}
-  function proj(){const a=canvas.width/canvas.height,f=1/Math.tan(.55),n=.1,far=60;const p=new Float32Array(16);p[0]=f/a;p[5]=f;p[10]=(far+n)/(n-far);p[11]=-1;p[14]=2*far*n/(n-far);const cx=pos.x+Math.sin(yaw)*Math.cos(pitch)*dist,cy=Math.sin(pitch)*dist+4,cz=pos.z+Math.cos(yaw)*Math.cos(pitch)*dist;const tx=pos.x,ty=.7,tz=pos.z;let zx=cx-tx,zy=cy-ty,zz=cz-tz,l=Math.hypot(zx,zy,zz);zx/=l;zy/=l;zz/=l;let xx=zz,xy=0,xz=-zx,l2=Math.hypot(xx,xz);xx/=l2;xz/=l2;const yx=xy*zz-xz*zy,yy=xz*zx-xx*zz,yz=xx*zy-xy*zx;const v=new Float32Array([xx,yx,zx,0,xy,yy,zy,0,xz,yz,zz,0,-(xx*tx+xy*ty+xz*tz),-(yx*tx+yy*ty+yz*tz),-(zx*tx+zy*ty+zz*tz),1]);const m=new Float32Array(16);for(let r=0;r<4;r++)for(let c=0;c<4;c++)m[c*4+r]=v[r]*p[c*4]+v[4+r]*p[c*4+1]+v[8+r]*p[c*4+2]+v[12+r]*p[c*4+3];return m;}
-  function draw(x,y,z,sx,sy,sz,c){gl.uniformMatrix4fv(locM,false,mat([sx,sy,sz,x,y,z]));gl.uniform3fv(locC,new Float32Array(c));gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0)}
-  function nearest(){let best=null,bd=3.1;for(const s of sites){const d=Math.hypot(s.x-pos.x,s.z-pos.z);if(d<bd){bd=d;best=s}}return best}
-  function update(dt,t){let dx=0,dz=0;if(keys.w||keys.arrowup)dz-=1;if(keys.s||keys.arrowdown)dz+=1;if(keys.a||keys.arrowleft)dx-=1;if(keys.d||keys.arrowright)dx+=1;if(dx||dz){const l=Math.hypot(dx,dz);dx/=l;dz/=l;const c=Math.cos(yaw),s=Math.sin(yaw);pos.x+=(dx*c-dz*s)*dt*4.4;pos.z+=(dx*s+dz*c)*dt*4.4;pos.x=Math.max(-31,Math.min(31,pos.x));pos.z=Math.max(-24,Math.min(24,pos.z));if(t-lastSend>120&&window.sendLifePosition){window.sendLifePosition(pos.x,pos.z);lastSend=t;}}}
-  function render(t){resize();update(Math.min(.04,(t-(clock.t||t))/1000),t);clock.t=t;gl.clearColor(.025,.055,.095,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);gl.useProgram(prog);gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.uniformMatrix4fv(locM,false,proj());
-    draw(0,-.35,0,33,.35,26,[.08,.20,.18]);
-    draw(0,.02,0,32,.05,2,[.07,.09,.12]);draw(0,.03,0,2,.05,25,[.07,.09,.12]);
-    for(let i=-30;i<=30;i+=4){draw(i,.05,0,.035,.02,1.3,[.75,.62,.25]);} for(let i=-23;i<=23;i+=4){draw(0,.05,i,1.3,.02,.035,[.75,.62,.25]);}
-    for(let i=0;i<sites.length;i++){const s=sites[i],h=1.4+(i%3)*.6;draw(s.x,h/2,s.z,1.7,h,1.7,s.color);draw(s.x,h+.13,s.z,1.02,.08,1.02,[.96,.74,.25]);}
-    for(let i=-30;i<=30;i+=3){const h=1.4+(Math.abs(i)%7)*.38;draw(i,h/2,-23,1.05,h,1.05,[.12,.23,.35]);}
-    // coastal strip and denser Accra skyline/buildings
-    for(let i=-28;i<=28;i+=4){draw(i,.12,-22,.9,.08,1.6,[.10,.30,.32]);}
-    for(let i=0;i<sites.length;i++){const s=sites[i]; for(let j=0;j<2;j++){const ox=(j?-.0:.0)+(i%3-1)*1.8, oz=(j?2.2:-2.0); const h=1.1+((i*3+j)%5)*.55; draw(s.x+ox,h/2,s.z+oz,.62,h,.62,[.16,.25,.34]);}}
-    for(let i=0;i<20;i++){const x=((i*7)%25)-12,z=((i*11)%23)-11;draw(x,.5,z,.18,.8,.18,[.25,.14,.07]);draw(x,1.25,z,.62,.62,.62,[.08,.35,.18]);}
-    // other players
-    for(const p of others.values()){draw(p.x,.52,p.z,.32,.9,.32,[.56,.22,.38]);draw(p.x,1.55,p.z,.4,.4,.4,[.55,.32,.2]);}
-    const bob=Math.sin(t*.006)*.025;draw(pos.x,.52+bob,pos.z,.34,.92,.34,[.10,.30,.62]);draw(pos.x,1.52+bob,pos.z,.42,.42,.42,[.48,.29,.18]);draw(pos.x,1.78+bob,pos.z-.02,.46,.25,.46,[.03,.025,.02]);
-    const n=nearest();districtEl.textContent=n?n.name:'Accra · Free roam';const L=life();const q=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};q('needH','Hunger '+Math.round(L.hunger));q('needE','Energy '+Math.round(L.energy));q('needF','Fun '+Math.round(L.fun));q('needS','Social '+Math.round(L.social));requestAnimationFrame(render);
-  }
-  function onKey(e){const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){keys[k]=e.type==='keydown';e.preventDefault();}if(k==='e'&&e.type==='keydown'){const n=nearest();if(n&&Date.now()-lastAct>500){lastAct=Date.now();act(n.act);toast(`${n.name} · ${n.type}`)}}}
-  addEventListener('keydown',onKey);addEventListener('keyup',onKey);
-  canvas.addEventListener('pointerdown',e=>{dragging=true;lx=e.clientX;ly=e.clientY;canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!dragging)return;yaw-=(e.clientX-lx)*.008;pitch-=(e.clientY-ly)*.006;pitch=Math.max(.28,Math.min(1.22,pitch));lx=e.clientX;ly=e.clientY});canvas.addEventListener('pointerup',()=>dragging=false);canvas.addEventListener('wheel',e=>{dist=Math.max(8,Math.min(26,dist+e.deltaY*.01));e.preventDefault()},{passive:false});
-  modeBtn?.addEventListener('click',()=>{active=!active;canvas.classList.toggle('off',!active);modeBtn.textContent=active?'City Builder':'3D Life';});
-  let exploreIndex=-1;
-  mapBtn?.addEventListener('click',()=>{exploreIndex=(exploreIndex+1)%sites.length;const n=sites[exploreIndex];pos.x=n.x;pos.z=n.z+2;toast(`Arrived at ${n.name} · ${n.type}`)});
-  window.addEventListener('lifePlayers',e=>{for(const p of (e.detail||[]))if(p.id!==window.meId)others.set(p.id,p)});
-  window.addEventListener('lifePlayer',e=>{const p=e.detail;if(p&&p.id!==window.meId)others.set(p.id,p)});
-  window.addEventListener('lifeGone',e=>others.delete(e.detail));window.addEventListener('resize',resize);resize();requestAnimationFrame(render);
-})();
 </script>
 </body>
 </html>

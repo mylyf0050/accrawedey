@@ -1,6 +1,6 @@
 import re,os
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
-v5=open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'base_v5.html')).read().split('\n')
+os.chdir('/home/claude/city/client')
+v5=open('/home/claude/city/client/base_v5.html').read().split('\n')
 L=lambda a,b:'\n'.join(v5[a-1:b])+'\n'
 rd=lambda f:open(f).read()
 head=L(1,10)
@@ -43,7 +43,7 @@ function draw(t) {
 
 '''
 html+=L(488,502)+'\n'+L(504,511)+'\n'+rd('draw_mid.js')+L(549,555)+'\n'+rd('draw_hover.js')+'\n'+L(574,584)+'\n}\n\n'+L(592,615)
-html+=rd('hud.js')+'\n'+rd('world3d.js')+'</script>\n</body>\n</html>\n'
+html+=rd('hud.js')+'</script>\n</body>\n</html>\n'
 open('index.html','w').write(html)
 # syntax check
 js=html.split('<script>')[1].split('</script>')[0]

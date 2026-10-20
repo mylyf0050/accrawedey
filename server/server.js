@@ -32,7 +32,7 @@ function load() {
     for (let i = 0; i < N * N; i++) world.grid[(i / N) | 0][i % N] = TYPES[d.grid[i]] || 'empty';
     world.land = d.land; world.cracked = d.cracked; world.jobs = d.jobs || {}; world.companies = d.companies || {}; world.cars = d.cars || {}; election = d.election || election; R.reindex(world);
     players = d.players; nextId = d.nextId;
-    for (const id in players) { if (players[id].fedUntil === undefined) players[id].fedUntil = Date.now() + 24 * 3600000; if (!players[id].life) players[id].life = { hunger:72, energy:70, fun:55, social:45, hygiene:65, bladder:40 }; }
+    for (const id in players) if (players[id].fedUntil === undefined) players[id].fedUntil = Date.now() + 24 * 3600000;
     for (const id in players) world.names[id] = players[id].name;
     R.initCivic(world);
     console.log(`loaded world: ${Object.keys(players).length} players`);
@@ -46,7 +46,7 @@ function save() {
   const grid = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) grid.push(TYPE_ID[world.grid[y][x]]);
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = SAVE_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify({ v: 2, nextId, grid, land: world.land, cracked: world.cracked, jobs: world.jobs, companies: world.companies, cars: world.cars, election, players }));
+  fs.writeFileSync(tmp, JSON.stringify({ v: 1, nextId, grid, land: world.land, cracked: world.cracked, jobs: world.jobs, companies: world.companies, cars: world.cars, election, players }));
   fs.renameSync(tmp, SAVE_FILE);
 }
 
@@ -71,8 +71,7 @@ const server = http.createServer((req, res) => {
 });
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
 const ipOf = req => (TRUST_PROXY && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress || '?';
-const socks = new Map();
-                                   // ws -> player id
+const socks = new Map();                                   // ws -> player id
 
 const send = (ws, o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
 const broadcast = o => { const s = JSON.stringify(o); for (const ws of socks.keys()) if (ws.readyState === 1) ws.send(s); };
@@ -109,7 +108,7 @@ function rollover(ts) {
   election.week = wk; election.cands = {}; election.votes = {}; dirty = true;
   broadcast(electionMsg()); for (const [ws, pid] of socks) send(ws, ballotMsg(pid));
 }
-const youMsg = p => ({ t: 'you', money: p.money, ts: p.t, jail: p.jail || null, fed: p.fedUntil, life: p.life || null });
+const youMsg = p => ({ t: 'you', money: p.money, ts: p.t, jail: p.jail || null, fed: p.fedUntil });
 
 // ---------- messages ----------
 function hello(ws, m) {
@@ -134,38 +133,20 @@ function hello(ws, m) {
       lim.signups.get(ws.ip).push(now());
       const salt = crypto.randomBytes(16).toString('hex');
       const bg = R.rollBackground(crypto.randomInt(0, 1000000) / 1000000);
-      p = { id: nextId++, name, bg, av: null, money: R.BACKGROUNDS[bg].money, t: now(), born: now(), fedUntil: now() + 24 * 3600000, salt, pw: hashPw(pw, salt), life: { hunger: 72, energy: 70, fun: 55, social: 45, hygiene: 65, bladder: 40 } };
+      p = { id: nextId++, name, bg, av: null, money: R.BACKGROUNDS[bg].money, t: now(), born: now(), fedUntil: now() + 24 * 3600000, salt, pw: hashPw(pw, salt) };
       players[p.id] = p; world.names[p.id] = name; dirty = true;
       broadcast({ t: 'name', id: p.id, name });
     }
     token = crypto.randomBytes(24).toString('hex'); p.th = sha(token); dirty = true;     // fresh session token on every sign-in
   }
   for (const [o, pid] of socks) if (pid === p.id) { socks.delete(o); try { o.close(); } catch (e) {} }   // one session per player
-  socks.set(ws, p.id); ws.pid = p.id; ws.lifePos = { x: 0, z: 0 };
+  socks.set(ws, p.id); ws.pid = p.id;
   const away = now() - p.t, gain = settleP(p, now());
   const grid = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) grid.push(TYPE_ID[world.grid[y][x]]);
-  send(ws, { t: 'init', now: now(), token, you: { id: p.id, name: p.name, money: p.money, ts: p.t, born: p.born, jail: p.jail || null, fed: p.fedUntil, bg: p.bg || 'mid', av: p.av || null, life: p.life || null },
+  send(ws, { t: 'init', now: now(), token, you: { id: p.id, name: p.name, money: p.money, ts: p.t, born: p.born, jail: p.jail || null, fed: p.fedUntil, bg: p.bg || 'mid', av: p.av || null },
     world: { types: TYPES, grid, land: world.land, cracked: world.cracked, names: world.names, jobs: world.jobs, companies: world.companies, cars: world.cars }, away: away > 600000 ? { ms: Math.min(away, R.MAXAWAY), gain } : null });
   send(ws, electionMsg()); send(ws, ballotMsg(p.id));
   broadcast({ t: 'online', n: socks.size });
-  const existing = []; for (const [ow,oid] of socks) if (ow!==ws && players[oid] && ow.lifePos) existing.push({id:oid,name:players[oid].name,x:ow.lifePos.x,z:ow.lifePos.z}); send(ws,{t:'lifePlayers',list:existing});
-}
-
-function lifeAct(ws, p, m) {
-  const a = String(m.action || ''), L = p.life || (p.life = { hunger:72, energy:70, fun:55, social:45, hygiene:65, bladder:40 });
-  const fail = msg => send(ws, { t:'lifeRes', rid:m.rid, ok:false, msg, life:L, you:youMsg(p) });
-  const clamp = v => Math.max(0, Math.min(100, Math.round(v)));
-  const costs = { eat:25, work:0, relax:15, social:10, sleep:0, culture:8, travel:5 };
-  const cost = costs[a] ?? 0;
-  if (a === 'eat') { if (p.money < cost) return fail(`You need ${R.fmt(cost)} for food.`); p.money -= cost; L.hunger=clamp(L.hunger+38); L.energy=clamp(L.energy+8); L.bladder=clamp(L.bladder+22); p.fedUntil=Math.max(p.fedUntil||0, now()+10*3600000); }
-  else if (a === 'work') { if (p.jail && p.jail.until>now()) return fail('You cannot work while in prison.'); settleP(p, now()); p.money += 60; L.energy=clamp(L.energy-24); L.hunger=clamp(L.hunger-16); L.fun=clamp(L.fun-8); }
-  else if (a === 'relax') { L.fun=clamp(L.fun+28); L.energy=clamp(L.energy+8); L.social=clamp(L.social+5); }
-  else if (a === 'social') { L.social=clamp(L.social+30); L.fun=clamp(L.fun+15); L.energy=clamp(L.energy-6); }
-  else if (a === 'sleep') { L.energy=clamp(L.energy+55); L.hunger=clamp(L.hunger-12); L.hygiene=clamp(L.hygiene-8); }
-  else if (a === 'culture') { L.fun=clamp(L.fun+20); L.social=clamp(L.social+10); L.energy=clamp(L.energy-5); }
-  else if (a === 'travel') { L.energy=clamp(L.energy-5); }
-  else return fail('Unknown life action.');
-  dirty=true; send(ws,{t:'lifeRes',rid:m.rid,ok:true,action:a,life:L,you:youMsg(p)});
 }
 
 function act(ws, p, m) {
@@ -268,8 +249,6 @@ wss.on('connection', (ws, req) => {
       if (m.t === 'hello') return hello(ws, m);
       const pid = socks.get(ws), p = pid && players[pid]; if (!p) return;
       if (m.t === 'act') act(ws, p, m);
-      else if (m.t === 'life') lifeAct(ws, p, m);
-      else if (m.t === 'lifePos') { ws.lifePos={x:Math.max(-13,Math.min(13,Number(m.x)||0)),z:Math.max(-13,Math.min(13,Number(m.z)||0))}; const packet={t:'lifePlayer',id:p.id,name:p.name,x:ws.lifePos.x,z:ws.lifePos.z}; for(const [ow] of socks) if(ow!==ws&&ow.readyState===1) send(ow,packet); }
       else if (m.t === 'board') board(ws);
       else if (m.t === 'gift') gift(ws, p, m);
       else if (m.t === 'company') company(ws, p, m);
@@ -279,7 +258,7 @@ wss.on('connection', (ws, req) => {
       else if (m.t === 'sync') { settleP(p, now()); send(ws, Object.assign(youMsg(p), { now: now() })); }
     } catch (e) { console.error('message error:', e && e.stack || e); }
   });
-  ws.on('close', () => { lim.conn.set(ws.ip, Math.max(0, (lim.conn.get(ws.ip) || 1) - 1)); if (socks.delete(ws)) { broadcast({ t: 'online', n: socks.size }); broadcast({t:'lifeGone',id:ws.pid}); } });
+  ws.on('close', () => { lim.conn.set(ws.ip, Math.max(0, (lim.conn.get(ws.ip) || 1) - 1)); if (socks.delete(ws)) broadcast({ t: 'online', n: socks.size }); });
   ws.on('error', () => {});
 });
 
