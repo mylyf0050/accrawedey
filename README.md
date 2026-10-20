@@ -1,6 +1,6 @@
-# AccraWɔdey — 3D Life + Shared City
+# Accrawedey — 3D Life + Shared City
 
-AccraWɔdey is a Ghana-first multiplayer city/life simulation built on the existing Shared City server and economy. The current client combines the original land/building economy with a lightweight WebGL 3D free-roam layer.
+Accrawedey is a Ghana-first multiplayer city/life simulation built on the existing Shared City server and economy. The current client combines the original land/building economy with a lightweight WebGL 3D free-roam layer.
 
 ## 3D Life
 - Third-person 3D player movement with WASD/arrow keys.
@@ -26,3 +26,8 @@ npm start
 ```
 
 The build script is portable and uses its own project directory; it does not depend on an external `/home/claude/...` path.
+## Accrawedey 3D Accra World
+
+The 3D Life world now uses named Greater Accra locations rather than anonymous blocks. The current map includes Jamestown, Makola Market, Adabraka, Ridge, Osu/Oxford Street, Labone, Cantonments, Airport City, Airport Residential Area, Roman Ridge, Achimota, Circle, Kaneshie, Dansoman, Labadi, La, Teshie, Nungua, Spintex, East Legon, Shiashie, Madina, Legon, North Legon, Haatso, Westlands, Kokomlemle, Tesano, Abeka, Tema, Tema Community 1 and Prampram.
+
+Explore cycles through these named locations and the player can freely roam between them.
