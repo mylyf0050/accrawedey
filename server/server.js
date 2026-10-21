@@ -22,6 +22,7 @@ const recent = (map, ip, windowMs) => { const t = now(), a = (map.get(ip) || [])
 
 // ---------- state + persistence ----------
 let world, players = {}, nextId = 1, dirty = false;
+const songs = {};                                          // clubKey -> [{tr, by, st}] (not saved: queues are short-lived)
 let election = { week: -1, cands: {}, votes: {}, mayor: null };
 const WEEK = 7 * R.DAYMS, MON = 4 * R.DAYMS, ELECT_MIN_AGE = process.env.ELECT_MIN_AGE_MS !== undefined ? +process.env.ELECT_MIN_AGE_MS : 86400000;
 const weekOf = ts => Math.floor((ts - MON) / WEEK), weekEnd = wk => (wk + 1) * WEEK + MON;
@@ -150,7 +151,7 @@ function hello(ws, m) {
   const grid = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) grid.push(TYPE_ID[world.grid[y][x]]);
   send(ws, { t: 'init', now: now(), token, you: { id: p.id, name: p.name, money: p.money, ts: p.t, born: p.born, jail: p.jail || null, fed: p.fedUntil, bg: p.bg || 'mid', av: p.av || null },
     world: { types: TYPES, grid, land: world.land, cracked: world.cracked, names: world.names, jobs: world.jobs, companies: world.companies, cars: world.cars }, away: away > 600000 ? { ms: Math.min(away, R.MAXAWAY), gain } : null });
-  send(ws, electionMsg()); send(ws, ballotMsg(p.id));
+  send(ws, electionMsg()); send(ws, ballotMsg(p.id)); send(ws, songsMsg());
   broadcast({ t: 'online', n: socks.size });
 }
 
@@ -234,6 +235,34 @@ function vote(ws, p, m, run) {
   }
   broadcast(electionMsg());
 }
+// ---------- club song requests ----------
+function songPrune(ts) {
+  let ch = false;
+  for (const k of Object.keys(songs)) {
+    const y = (k / N) | 0, x = k % N, keep = world.grid[y] && world.grid[y][x] === 'club' ? songs[k].filter(s => s.st + R.SONG.TRACK_MS > ts) : [];
+    if (keep.length !== songs[k].length) { ch = true; if (keep.length) songs[k] = keep; else delete songs[k]; }
+  }
+  return ch;
+}
+function songsMsg() { const q = {}; for (const k in songs) q[k] = songs[k].map(s => ({ tr: s.tr, by: s.by, n: world.names[s.by] || '?', st: s.st })); return { t: 'songs', q, now: now() }; }
+function song(ws, p, m) {
+  const fail = msg => send(ws, { t: 'songRes', ok: false, msg }), ts = now();
+  const x = m.x, y = m.y, tr = R.SONG.TRACKS.find(t => t.id === m.tr);
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= N || y >= N || !tr) return fail('Pick a club and a song.');
+  if (world.grid[y][x] !== 'club') return fail('That is not a night club.');
+  if (p.jail && p.jail.until > ts) return fail('You cannot do that while in prison.');
+  const d = new Date(ts); if (!process.env.SONG_ANYTIME && CATALOG.club.at(d.getUTCHours(), d.getUTCDay()) <= 0) return fail('The club is closed. Requests open at 20:00.');
+  songPrune(ts); const k = y * N + x, q = songs[k] || (songs[k] = []);
+  if (q.length >= R.SONG.MAXQ) return fail('The DJ has a full queue. Try again in a few minutes.');
+  if (q.filter(s => s.by === p.id).length >= R.SONG.PER_PLAYER) return fail('You already have two songs in this queue.');
+  settleP(p, ts); if (p.money < R.SONG.PRICE) return fail(`A request costs ${R.fmt(R.SONG.PRICE)}. You have ${R.fmt(p.money)}.`);
+  p.money -= R.SONG.PRICE;
+  const L = world.land[k], owner = L && L.o && players[L.o] ? players[L.o] : null, cut = Math.round(R.SONG.PRICE * R.SONG.OWNER_CUT);
+  if (owner) { if (owner.id !== p.id) settleP(owner, ts); owner.money += cut; if (owner.id !== p.id) { notify(owner.id, 'ok', `${p.name} requested "${tr.name}" at your club: +${R.fmt(cut)}`); const o = socketOf(owner.id); if (o) send(o, youMsg(owner)); } }
+  const last = q[q.length - 1]; q.push({ tr: tr.id, by: p.id, st: last ? Math.max(ts, last.st + R.SONG.TRACK_MS) : ts }); dirty = true;
+  send(ws, { t: 'songRes', ok: true, msg: `"${tr.name}" is in the queue`, you: youMsg(p) }); broadcast(songsMsg());
+}
+
 function board(ws) {
   const rows = Object.values(players).map(p => { const set = world.byOwner[p.id] || new Set(), first = set.size ? Math.min(...set) : -1; return { id: p.id, name: p.name, worth: R.netWorth(world, p), plots: set.size, at: first >= 0 ? [first % N, (first / N) | 0] : null, co: world.companies[p.id] ? world.companies[p.id].name : '', mayor: !!(election.mayor && election.mayor.id === p.id) }; })
     .sort((a, b) => b.worth - a.worth).slice(0, 25);
@@ -256,6 +285,7 @@ wss.on('connection', (ws, req) => {
       if (m.t === 'act') act(ws, p, m);
       else if (m.t === 'board') board(ws);
       else if (m.t === 'gift') gift(ws, p, m);
+      else if (m.t === 'song') song(ws, p, m);
       else if (m.t === 'company') company(ws, p, m);
       else if (m.t === 'avatar') { const av = R.cleanAvatar(m.av); if (!av) send(ws, { t: 'avatarRes', ok: false, msg: 'Pick a valid look.' }); else { p.av = av; dirty = true; send(ws, { t: 'avatarRes', ok: true, av }); } }
       else if (m.t === 'run') vote(ws, p, m, true);
@@ -322,6 +352,7 @@ function sweep() {
 load(); rollover(now());
 setInterval(sweep, 60000);
 setInterval(save, 5000);
+setInterval(() => { if (songPrune(now())) broadcast(songsMsg()); }, 5000);
 setInterval(() => { for (const m of [lim.signups, lim.fails]) for (const ip of [...m.keys()]) if (!recent(m, ip, 3600000).length) m.delete(ip); }, 600000);
 process.on('SIGTERM', () => { dirty = true; save(); process.exit(0); });
 process.on('SIGINT', () => { dirty = true; save(); process.exit(0); });

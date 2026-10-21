@@ -118,3 +118,7 @@ body.mode3d #c{visibility:hidden}
 #v3d{cursor:pointer;font-weight:700}
 #v3d.on{background:#22c55e;color:#04210f}
 body.mode3d #dock,body.mode3d #zoom,body.mode3d #hint{display:none!important}
+
+#mus{cursor:pointer;padding:6px 10px}#mus.off{opacity:.5}#mus.play{box-shadow:0 0 0 2px #22c55e55}
+.vol{display:flex;gap:8px;align-items:center;margin:8px 0}.vol button{min-width:40px}
+.qline{font-size:12px;opacity:.85;margin-top:3px}.trk{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #ffffff14}

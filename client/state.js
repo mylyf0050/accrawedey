@@ -7,6 +7,7 @@ const { N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, ROAD, LAND, CATALOG, TI
 const fmtK = n => n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + 'M' : n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'k' : String(Math.round(n));
 
 let world = R.makeWorld();
+let songs = {};
 const me = { id: 0, name: '', money: 0, t: 0, born: 0, jail: null };
 let timeOff = 0;                                   // server clock minus this device's clock: players cannot gain time by changing their clock
 const now = () => Date.now() + timeOff;
@@ -74,6 +75,8 @@ function onMsg(m) {
   else if (m.t === 'ballot') { ballot = m.vote; handlers.panel && handlers.panel(); }
   else if (m.t === 'companyRes' || m.t === 'electionRes') { if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; dirty(); } handlers.simple && handlers.simple(m); }
   else if (m.t === 'giftRes') { if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; dirty(); } handlers.gift && handlers.gift(m); }
+  else if (m.t === 'songs') { songs = m.q || {}; handlers.songs && handlers.songs(m); }
+  else if (m.t === 'songRes') { if (m.you) { me.money = m.you.money; me.t = m.you.ts; me.jail = m.you.jail; dirty(); } handlers.songRes && handlers.songRes(m); }
   else if (m.t === 'name') world.names[m.id] = m.name;
   else if (m.t === 'online') { online = m.n; handlers.online && handlers.online(); }
   else if (m.t === 'notice') handlers.notice && handlers.notice(m);

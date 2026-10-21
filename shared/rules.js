@@ -24,6 +24,8 @@
   const cleanAvatar = v => { if (!v || typeof v !== 'object') return null; const o = {}; for (const k in AVATAR_MAX) { const n = v[k]; if (!Number.isInteger(n) || n < 0 || n > AVATAR_MAX[k]) return null; o[k] = n; } return o; };
   const rollBackground = r => { let x = r * 100; for (const k in BACKGROUNDS) { x -= BACKGROUNDS[k].w; if (x < 0) return k; } return 'mid'; };
   const FOUND_COST = 2000, PAY_MIN = 0.8, PAY_MAX = 1.5, MAYOR_PAY = 5000;
+  const SONG = { PRICE: 50, TRACK_MS: 180000, MAXQ: 4, PER_PLAYER: 2, OWNER_CUT: 0.7,
+    TRACKS: [['accra', 'Accra Nights', 'Afrobeats'], ['highlife', 'Highlife Sunday', 'Highlife'], ['azonto', 'Azonto Run', 'Azonto'], ['sunset', 'Jamestown Sunset', 'Chill'], ['makola', 'Makola Rush', 'Fast'], ['osu', 'Oxford Street Groove', 'Amapiano'], ['kpanlogo', 'Kpanlogo Fire', 'Drums'], ['gospel', 'Gospel Morning', 'Gospel']].map(a => ({ id: a[0], name: a[1], tag: a[2] })) };
   const SIDE_HR = 3;                        // side hustle: GH₵3 for every hour an employed player is off shift (airtime, deliveries, braiding...)
   const WAGE = 60;                          // odd-jobs income per day, so nobody is ever stuck at zero
   const ROAD = { cost: 120, repair: 40 };
@@ -424,7 +426,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
     return p;
   }
 
-  const api = { SIDE_HR, shiftInfo, BACKGROUNDS, AVATAR_MAX, cleanAvatar, rollBackground, LAW, POLICE, PRISONS, countNear, policeCover, raidRisk, nearestPolice, prisons, N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, LIVING, LIVING_ITEMS, FURNISH_COST, FURNISH_BOOST, FOUND_COST, PAY_MIN, PAY_MAX, MAYOR_PAY, CARS, payMul, ROAD, LAND, CATALOG, TIERS, CIVIC, ZONES, key, blankGrid, makeWorld, setLand, delLand, reindex, hash,
+  const api = { SONG, SIDE_HR, shiftInfo, BACKGROUNDS, AVATAR_MAX, cleanAvatar, rollBackground, LAW, POLICE, PRISONS, countNear, policeCover, raidRisk, nearestPolice, prisons, N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, LIVING, LIVING_ITEMS, FURNISH_COST, FURNISH_BOOST, FOUND_COST, PAY_MIN, PAY_MAX, MAYOR_PAY, CARS, payMul, ROAD, LAND, CATALOG, TIERS, CIVIC, ZONES, key, blankGrid, makeWorld, setLand, delLand, reindex, hash,
     zoneOf, nearRoad, intactRoad, landPrice, rentDaily, leaseCost, fmt, seedWorld, initCivic, census, rates, dumsorAt, FOOD, FEED_CAP, OWNER_SHARE, HUNGRY_FACTOR, STAFF_FLOOR, openN, DUMSOR_FACTOR, projectDay, setJob, workersAt, jobValid, openJobs, hourPay, dayYield, netWorth, settle, expireDue, plan, perform, clamp };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Rules = api;
 })(typeof self !== 'undefined' ? self : this);

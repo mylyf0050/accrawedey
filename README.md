@@ -38,3 +38,6 @@ New buildings: Chop Bar, Trotro Station (appended to the type list so older save
 
 ## 3D view
 Tap the 3D button (top bar) to switch the city to a Three.js 3D view; tap 2D to go back. 2D stays the default. Three.js is served from client/three.min.js and loads only when 3D is tapped.
+
+## Music
+Original tracks are synthesised live in the browser with WebAudio (no audio files). Ambient music plays by default (tap the music button in the top bar to mute). Players can tune in to a night club and pay GH₵50 to request one of 8 tracks; the club owner gets 70%. Requests only open when clubs are open (20:00 to 04:00 Ghana time). Server: `song` message, queue max 4 per club, 2 per player. Test-only env: `SONG_ANYTIME=1` ignores opening hours.

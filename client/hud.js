@@ -109,7 +109,7 @@ function updateGuide() {
 
 // ---------- the pull-down Market sheet ----------
 const sheet = $('sheet'), scrim = $('scrim'), panel = $('panel'); let sheetOpen = false, tab = 'build', openedAt = 0;
-const TABS = [['me', 'Me', 'players'], ['build', 'Build', 'build'], ['land', 'Land', 'land'], ['mine', 'My Properties', 'mine'], ['jobs', 'Jobs', 'jobs'], ['food', 'Food', 'shop'], ['city', 'City', 'players'], ['players', 'Players', 'players']];
+const TABS = [['me', 'Me', 'players'], ['build', 'Build', 'build'], ['land', 'Land', 'land'], ['mine', 'My Properties', 'mine'], ['jobs', 'Jobs', 'jobs'], ['food', 'Food', 'shop'], ['city', 'City', 'players'], ['music', 'Music', 'players'], ['players', 'Players', 'players']];
 let boardRows = null;
 function setSheet(open) {
   sheetOpen = open; if (open) openedAt = performance.now(); sheet.style.transform = ''; sheet.classList.toggle('open', open); scrim.classList.toggle('show', open);
@@ -120,7 +120,7 @@ function renderSheet() {
   const st = panel.scrollTop;
   if (tab === 'players' && !boardRows) sendMsg({ t: 'board' });
   if (tab === 'city' && !election.week && election.week !== 0 && !election.ask) { election.ask = 1; sendMsg({ t: 'sync' }); }
-  panel.innerHTML = tab === 'me' ? panelMe() : tab === 'build' ? panelBuild() : tab === 'land' ? panelLand() : tab === 'players' ? panelPlayers() : tab === 'jobs' ? panelJobs() : tab === 'food' ? panelFood() : tab === 'city' ? panelCity() : panelMine();
+  panel.innerHTML = tab === 'me' ? panelMe() : tab === 'build' ? panelBuild() : tab === 'land' ? panelLand() : tab === 'players' ? panelPlayers() : tab === 'jobs' ? panelJobs() : tab === 'food' ? panelFood() : tab === 'city' ? panelCity() : tab === 'music' ? panelMusic() : panelMine();
   panel.scrollTop = st;
 }
 const hoursLine = k => CATALOG[k].hours;
