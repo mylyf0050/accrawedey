@@ -9,7 +9,7 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const CLIENT_FILE = process.env.CLIENT_FILE || path.join(__dirname, '..', 'client', 'index.html');
 const SAVE_FILE = path.join(DATA_DIR, 'world.json');
 const { N, key, CATALOG, CIVIC } = R;
-const NEWER = ['chopbar', 'trotro'];                       // newer building types are appended so saved worlds keep their tile ids
+const NEWER = ['chopbar', 'trotro', 'hostel'];                       // newer building types are appended so saved worlds keep their tile ids
 const TYPES = ['empty', 'road', ...Object.keys(CATALOG).filter(k => !NEWER.includes(k)), ...Object.keys(CIVIC), ...NEWER];
 const TYPE_ID = Object.fromEntries(TYPES.map((t, i) => [t, i]));
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
@@ -27,28 +27,37 @@ let election = { week: -1, cands: {}, votes: {}, mayor: null };
 const WEEK = 7 * R.DAYMS, MON = 4 * R.DAYMS, ELECT_MIN_AGE = process.env.ELECT_MIN_AGE_MS !== undefined ? +process.env.ELECT_MIN_AGE_MS : 86400000;
 const weekOf = ts => Math.floor((ts - MON) / WEEK), weekEnd = wk => (wk + 1) * WEEK + MON;
 function load() {
-  try {
-    const d = JSON.parse(fs.readFileSync(SAVE_FILE, 'utf8'));
+  function restore(d) {
     world = R.makeWorld();
     for (let i = 0; i < N * N; i++) world.grid[(i / N) | 0][i % N] = TYPES[d.grid[i]] || 'empty';
-    world.land = d.land; world.cracked = d.cracked; world.jobs = d.jobs || {}; world.companies = d.companies || {}; world.cars = d.cars || {}; election = d.election || election; R.reindex(world);
+    world.land = d.land; world.cracked = d.cracked; world.jobs = d.jobs || {}; world.companies = d.companies || {}; world.cars = d.cars || {}; world.beds = d.beds || {}; election = d.election || election; R.reindex(world);
     players = d.players; nextId = d.nextId;
     for (const id in players) if (players[id].fedUntil === undefined) players[id].fedUntil = Date.now() + 24 * 3600000;
     for (const id in players) world.names[id] = players[id].name;
     R.initCivic(world);
-    console.log(`loaded world: ${Object.keys(players).length} players`);
-  } catch (e) {
-    world = R.seedWorld(); players = {}; nextId = 1; dirty = true;
-    console.log('created a new world');
   }
+  let lastError;
+  for (const file of [SAVE_FILE, SAVE_FILE + '.bak']) {
+    try {
+      restore(JSON.parse(fs.readFileSync(file, 'utf8')));
+      if (file !== SAVE_FILE) console.warn('primary world save could not be loaded; restored backup');
+      console.log(`loaded world: ${Object.keys(players).length} players`);
+      return;
+    } catch (e) { lastError = e; }
+  }
+  world = R.seedWorld(); players = {}; nextId = 1; dirty = true;
+  console.log('created a new world');
+  if (lastError && fs.existsSync(SAVE_FILE)) console.error('world save and backup could not be loaded:', lastError.message);
 }
 function save() {
-  if (!dirty) return; dirty = false;
+  if (!dirty) return;
   const grid = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) grid.push(TYPE_ID[world.grid[y][x]]);
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = SAVE_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify({ v: 1, nextId, grid, land: world.land, cracked: world.cracked, jobs: world.jobs, companies: world.companies, cars: world.cars, election, players }));
+  fs.writeFileSync(tmp, JSON.stringify({ v: 1, nextId, grid, land: world.land, cracked: world.cracked, jobs: world.jobs, companies: world.companies, cars: world.cars, beds: world.beds, election, players }));
+  if (fs.existsSync(SAVE_FILE)) fs.copyFileSync(SAVE_FILE, SAVE_FILE + '.bak');
   fs.renameSync(tmp, SAVE_FILE);
+  dirty = false;
 }
 
 // ---------- http (serves the game itself) ----------
@@ -93,6 +102,7 @@ function clearJobsAt(k, why, ts) {
   for (const id of pids) { if (players[id]) settleP(players[id], ts); R.setJob(world, id, null); const ws = socketOf(id); if (ws) { send(ws, { t: 'notice', kind: 'err', msg: why }); send(ws, youMsg(players[id])); } }
   dirty = true; broadcast(jobsMsg(pids));
 }
+const bedsMsg = pids => ({ t: 'beds', list: pids.map(id => ({ p: id, k: world.beds[id] === undefined ? null : world.beds[id] })) });
 const carsMsg = pids => ({ t: 'cars', list: pids.map(id => ({ p: id, c: world.cars[id] || null })) });
 const companyMsg = id => ({ t: 'company', id, co: world.companies[id] || null });
 const electionMsg = () => ({ t: 'election', week: election.week, endsAt: weekEnd(election.week), mayor: election.mayor,
@@ -150,7 +160,7 @@ function hello(ws, m) {
   const away = now() - p.t, gain = settleP(p, now());
   const grid = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) grid.push(TYPE_ID[world.grid[y][x]]);
   send(ws, { t: 'init', now: now(), token, you: { id: p.id, name: p.name, money: p.money, ts: p.t, born: p.born, jail: p.jail || null, fed: p.fedUntil, bg: p.bg || 'mid', av: p.av || null },
-    world: { types: TYPES, grid, land: world.land, cracked: world.cracked, names: world.names, jobs: world.jobs, companies: world.companies, cars: world.cars }, away: away > 600000 ? { ms: Math.min(away, R.MAXAWAY), gain } : null });
+    world: { types: TYPES, grid, land: world.land, cracked: world.cracked, names: world.names, jobs: world.jobs, companies: world.companies, cars: world.cars, beds: world.beds }, away: away > 600000 ? { ms: Math.min(away, R.MAXAWAY), gain } : null });
   send(ws, electionMsg()); send(ws, ballotMsg(p.id)); send(ws, songsMsg());
   broadcast({ t: 'online', n: socks.size });
 }
@@ -165,6 +175,7 @@ function act(ws, p, m) {
   for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { const L = world.land[key(x + dx, y + dy)]; if (L && L.o) touched.add(L.o); }
   const tk = key(x, y), before = world.grid[y][x], hadJob = !!world.jobs[p.id];
   for (const id of R.workersAt(world, tk)) touched.add(id);
+  { const pb = R.bedAt(world, p.id); if (pb !== null && world.land[pb] && world.land[pb].o) touched.add(world.land[pb].o); }   // the old hostel owner is paid before the bed changes
   for (const id of touched) if (players[id]) settleP(players[id], ts);
   const r = R.perform(world, p, tool, x, y, null, ts);
   if (!r.ok) return send(ws, { t: 'res', rid: m.rid, ok: false, msg: r.msg, you: youMsg(p) });
@@ -180,6 +191,7 @@ function act(ws, p, m) {
   }
   if (tool.k === 'job' || hadJob !== !!world.jobs[p.id]) broadcast(jobsMsg([p.id]));
   if (tool.k === 'vehicle') broadcast(carsMsg([p.id]));
+  if (tool.k === 'bed') broadcast(bedsMsg([p.id]));
   const list = [tileMsg(x, y)]; broadcast({ t: 'tiles', list });
   send(ws, { t: 'res', rid: m.rid, ok: true, done: r.done, cost: r.cost || 0, gain: r.gain || 0, note: r.note || '', you: youMsg(p) });
   for (const id of touched) if (id !== p.id) { const o = socketOf(id); if (o) send(o, youMsg(players[id])); }

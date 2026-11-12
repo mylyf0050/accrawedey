@@ -26,6 +26,7 @@
   const FOUND_COST = 2000, PAY_MIN = 0.8, PAY_MAX = 1.5, MAYOR_PAY = 5000;
   const SONG = { PRICE: 50, TRACK_MS: 180000, MAXQ: 4, PER_PLAYER: 2, OWNER_CUT: 0.7,
     TRACKS: [['accra', 'Accra Nights', 'Afrobeats'], ['highlife', 'Highlife Sunday', 'Highlife'], ['azonto', 'Azonto Run', 'Azonto'], ['sunset', 'Jamestown Sunset', 'Chill'], ['makola', 'Makola Rush', 'Fast'], ['osu', 'Oxford Street Groove', 'Amapiano'], ['kpanlogo', 'Kpanlogo Fire', 'Drums'], ['gospel', 'Gospel Morning', 'Gospel']].map(a => ({ id: a[0], name: a[1], tag: a[2] })) };
+  const BEDS = 6, BED_RENT = 20, BED_SAVE = 10;      // hostel: beds per hostel, daily rent per bed, daily living cost saved by sharing a kitchen
   const SIDE_HR = 3;                        // side hustle: GH₵3 for every hour an employed player is off shift (airtime, deliveries, braiding...)
   const WAGE = 60;                          // odd-jobs income per day, so nobody is ever stuck at zero
   const ROAD = { cost: 120, repair: 40 };
@@ -64,6 +65,8 @@
                at: h => between(h, 5, 23) ? 800 : 0, blurb: 'The ultimate landmark. Huge income, huge cost. Industrial district only.' },
     chopbar: { sal: 80, name: 'Chop Bar', tier: 'Commerce', cost: 7500, unlock: 6, homes: 0, jobs: 3, upkeep: 30, happy: 2, warn: 60, zones: 'rc', hours: 'Every day 06:00 to 22:00',
                at: h => between(h, 6, 22) ? 28 : 0, blurb: 'Waakye, banku and kenkey for the neighbourhood. Steady money from breakfast to supper.' },
+    hostel:  { name: 'Hostel', tier: 'Essentials', cost: 12000, unlock: 6, homes: 0, jobs: 0, upkeep: 40, happy: 1, warn: 60, zones: 'rc', hours: 'Rooms for rent all day',
+               at: () => 0, blurb: 'Six beds for students and workers. Each tenant pays you GH₵20 a day. Needs a working road.' },
     trotro:  { sal: 100, name: 'Trotro Station', tier: 'Transport', cost: 20000, unlock: 10, homes: 0, jobs: 6, upkeep: 60, happy: 1, warn: 66, zones: 'rc', hours: 'Every day 05:00 to 21:00',
                at: h => between(h, 5, 21) ? (between(h, 5, 9) || between(h, 16, 20) ? 65 : 40) : 0, blurb: 'Fares from the whole town. Rush hours (05:00 to 09:00 and 16:00 to 20:00) pay the most.' }
   };
@@ -88,7 +91,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
   // ---------- world ----------
   const key = (x, y) => y * N + x;
   const blankGrid = () => Array.from({ length: N }, () => Array(N).fill('empty'));
-  function makeWorld() { return { grid: blankGrid(), land: {}, byOwner: {}, cracked: {}, names: { 0: 'City' }, jobs: {}, staff: {}, companies: {}, cars: {} }; }
+  function makeWorld() { return { grid: blankGrid(), land: {}, byOwner: {}, cracked: {}, names: { 0: 'City' }, jobs: {}, staff: {}, companies: {}, cars: {}, beds: {} }; }
   function setLand(w, k, entry) {
     const old = w.land[k]; if (old && w.byOwner[old.o]) w.byOwner[old.o].delete(k);
     w.land[k] = entry; (w.byOwner[entry.o] || (w.byOwner[entry.o] = new Set())).add(k);
@@ -96,7 +99,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
   function delLand(w, k) { const old = w.land[k]; if (old && w.byOwner[old.o]) w.byOwner[old.o].delete(k); delete w.land[k]; }
   function reindex(w) {
     w.byOwner = {}; for (const k in w.land) (w.byOwner[w.land[k].o] || (w.byOwner[w.land[k].o] = new Set())).add(+k);
-    w.jobs = w.jobs || {}; w.companies = w.companies || {}; w.cars = w.cars || {}; w.staff = {}; for (const id in w.jobs) { const k = w.jobs[id].k; w.staff[k] = (w.staff[k] || 0) + 1; }
+    w.jobs = w.jobs || {}; w.companies = w.companies || {}; w.cars = w.cars || {}; w.beds = w.beds || {}; w.staff = {}; for (const id in w.jobs) { const k = w.jobs[id].k; w.staff[k] = (w.staff[k] || 0) + 1; }
   }
   // ---------- jobs: a player works at one building, the owner pays the salary while it is open ----------
   const openHoursOf = (k, d) => { let n = 0; for (let h = 0; h < 24; h++) if (CATALOG[k].at(h, d) > 0) n++; return n; };
@@ -189,6 +192,10 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
   }
 
   // ---------- census of one player's holdings ----------
+  // Hostel beds: w.beds maps player id -> hostel tile key. A bed only counts while that tile is still a hostel with a working road.
+  const hostelOk = (w, k) => k !== undefined && k !== null && w.grid[(k / N) | 0] && w.grid[(k / N) | 0][k % N] === 'hostel' && !!w.land[k] && nearRoad(w, k % N, (k / N) | 0);
+  function bedOcc(w, k) { let n = 0; for (const id in w.beds) if (w.beds[id] === k) n++; return n; }
+  function bedAt(w, pid) { const k = w.beds && w.beds[pid]; return hostelOk(w, k) ? k : null; }
   function census(w, pid) {
     const c = { pop: 0, jobs: 0, built: 0, unconnected: 0, blds: [], happyAdd: 0, own: 0, rent: 0, lease: 0, rentDay: 0, late: 0, soonest: Infinity };
     for (const k of (w.byOwner[pid] || [])) {
@@ -198,7 +205,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
       if (L.t === 'lease') c.soonest = Math.min(c.soonest, L.end);
       const d = CATALOG[g]; if (!d) continue;
       const ok = g === 'park' || nearRoad(w, x, y);
-      c.built++; c.blds.push({ x, y, k: g, ok, n: w.staff[k] || 0, f: L.f || 0 });
+      c.built++; c.blds.push({ x, y, k: g, ok, n: w.staff[k] || 0, f: L.f || 0, occ: g === 'hostel' ? bedOcc(w, k) : 0 });
       if (!ok) c.unconnected++; else {
         c.pop += d.homes; c.jobs += d.jobs; c.happyAdd += d.happy;
         if (g === 'house') c.happyAdd += 2 * Math.min(2, policeCover(w, x, y)) - 3 * Math.min(3, countNear(w, ['den'], x, y, LAW.denRadius));   // safe streets vs black markets
@@ -206,7 +213,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
     }
     const jb = w.jobs && w.jobs[pid]; c.job = jobValid(w, jb) ? jb : null;
     c.jobPm = c.job ? payMul(w, w.land[c.job.k].o) : 1; c.pm = payMul(w, pid);
-    c.car = (w.cars && w.cars[pid]) || null; c.living = LIVING - (c.car ? LIVING_ITEMS.transport : 0);
+    c.car = (w.cars && w.cars[pid]) || null; c.bed = bedAt(w, pid); c.living = LIVING - (c.car ? LIVING_ITEMS.transport : 0) - (c.bed !== null ? BED_SAVE : 0);
     c.employed = Math.min(c.pop, c.jobs);
     c.homesF = c.pop ? 0.6 + 0.4 * Math.min(1, c.jobs / c.pop) : 0;
     c.workF = c.jobs ? 0.5 + 0.5 * Math.min(1, c.pop / c.jobs) : 0;
@@ -234,8 +241,10 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
     const working = c.job && CATALOG[c.job.g].at(h, d) > 0;
     if (working) inc += hourPay(c.job.g, d) * (c.jobPm || 1); else if (c.job) inc += SIDE_HR;
     if (c.car && !working) { const v = CARS[c.car], g = v.at(h); if (g > 0) { inc += g; cost += v.run; } }
+    if (c.bed !== null && c.bed !== undefined) cost += BED_RENT / 24;
     for (const b of c.blds) {
       const def = CATALOG[b.k]; cost += def.upkeep / 24;
+      if (b.k === 'hostel' && b.ok) inc += (b.occ || 0) * BED_RENT / 24;
       if (!b.ok) continue;
       const y = def.at(h, d);
       if (y > 0 && b.n) cost += b.n * hourPay(b.k, d) * (c.pm || 1);
@@ -368,6 +377,15 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
       if ((w.staff[k] || 0) >= openN(w, k, g)) return no('No free positions here');
       return { ok: true, cost: 0, verb: 'Take job', note: `${fmt(d.sal)}/day`, done: `You work at the ${d.name} now: ${fmt(d.sal)}/day`, apply() { setJob(w, me.id, { k, g, at: ts }); } };
     }
+    if (T.k === 'bed') {
+      if (T.mode === 'leave') return bedAt(w, me.id) !== null ? { ok: true, cost: 0, verb: 'Leave hostel', done: 'You moved out of the hostel', apply() { delete w.beds[me.id]; } } : no('You do not rent a bed');
+      if (T.mode !== 'rent' || g !== 'hostel' || !L) return no('No beds to rent here');
+      if (!nearRoad(w, x, y)) return no('This hostel has no working road, so it is closed');
+      if (bedAt(w, me.id) === k) return no('You already live here');
+      if (bedOcc(w, k) >= BEDS) return no('This hostel is full');
+      if (me.money < BED_RENT) return no(`You need at least ${fmt(BED_RENT)} (one day's rent) to move in`);
+      return { ok: true, cost: 0, verb: 'Rent a bed', note: `${fmt(BED_RENT)}/day`, done: `You moved in: ${fmt(BED_RENT)}/day`, apply() { w.beds[me.id] = k; } };
+    }
     if (T.k === 'hire') {
       const d = CATALOG[g], n = T.n;
       if (other) return no(other);
@@ -426,7 +444,7 @@ const LAW = { jailHours: 12, slots: 10, fineBase: 2000, finePct: 0.10, bounty: 1
     return p;
   }
 
-  const api = { SONG, SIDE_HR, shiftInfo, BACKGROUNDS, AVATAR_MAX, cleanAvatar, rollBackground, LAW, POLICE, PRISONS, countNear, policeCover, raidRisk, nearestPolice, prisons, N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, LIVING, LIVING_ITEMS, FURNISH_COST, FURNISH_BOOST, FOUND_COST, PAY_MIN, PAY_MAX, MAYOR_PAY, CARS, payMul, ROAD, LAND, CATALOG, TIERS, CIVIC, ZONES, key, blankGrid, makeWorld, setLand, delLand, reindex, hash,
+  const api = { BEDS, BED_RENT, BED_SAVE, bedAt, bedOcc, SONG, SIDE_HR, shiftInfo, BACKGROUNDS, AVATAR_MAX, cleanAvatar, rollBackground, LAW, POLICE, PRISONS, countNear, policeCover, raidRisk, nearestPolice, prisons, N, HOUR, DAYMS, MAXAWAY, CUR, START_MONEY, WAGE, LIVING, LIVING_ITEMS, FURNISH_COST, FURNISH_BOOST, FOUND_COST, PAY_MIN, PAY_MAX, MAYOR_PAY, CARS, payMul, ROAD, LAND, CATALOG, TIERS, CIVIC, ZONES, key, blankGrid, makeWorld, setLand, delLand, reindex, hash,
     zoneOf, nearRoad, intactRoad, landPrice, rentDaily, leaseCost, fmt, seedWorld, initCivic, census, rates, dumsorAt, FOOD, FEED_CAP, OWNER_SHARE, HUNGRY_FACTOR, STAFF_FLOOR, openN, DUMSOR_FACTOR, projectDay, setJob, workersAt, jobValid, openJobs, hourPay, dayYield, netWorth, settle, expireDue, plan, perform, clamp };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Rules = api;
 })(typeof self !== 'undefined' ? self : this);

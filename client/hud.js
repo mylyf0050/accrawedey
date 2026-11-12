@@ -21,6 +21,7 @@ const ICONS = {
   build: '<path d="M4 21V7l8-4 8 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/>',
   sell:  '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1"/>',
   mine:  '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  hostel: '<path d="M3 20V8l9-4 9 4v12"/><path d="M7 20v-6h10v6M9 11h2M13 11h2"/>',
   chopbar: '<path d="M4 11h16l-1.5 8h-13z"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   trotro: '<rect x="3" y="6" width="18" height="10" rx="2"/><path d="M3 11h18M7 19h.01M17 19h.01"/>',
   jobs:  '<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 14h18"/>',
@@ -193,7 +194,7 @@ function panelJobs() {
 }
 const C0 = () => cen();
 // ---------- avatar and room ----------
-const SKIN = ['#f1c9a5', '#e0ac7e', '#c68642', '#a0693a', '#7a4a2a', '#4b2e1c'], HAIRC = ['#1a1a1a', '#3b2314', '#6b4226', '#b5651d', '#bdbdbd', '#7b2cbf'], OUTC = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#f1f5f9'];
+const SKIN = ['#f1c9a5', '#e0ac7e', '#c68642', '#a0693a', '#7a4a2a', '#4b2e1c'], HAIRC = ['#171714', '#33231c', '#67452f', '#956338', '#b6b1a7', '#514357'], OUTC = ['#9f3c2f', '#28658a', '#466b47', '#c7922b', '#683b50', '#e7dfcc'];
 const HAIRN = ['Low cut', 'Afro', 'Long braids', 'Bun', 'Bald'];
 function avatarSVG(av) {
   av = av || { g: 0, s: 2, h: 0, c: 0, o: 1 }; const sk = SKIN[av.s], hc = HAIRC[av.c], oc = OUTC[av.o], f = av.g === 1;
@@ -221,11 +222,12 @@ function avatarSVG(av) {
   const idle = `<animateTransform attributeName="transform" type="translate" values="0 0;0 -.8;0 0" dur="3s" repeatCount="indefinite"/>`;
   return `<svg viewBox="0 0 64 80" xmlns="http://www.w3.org/2000/svg">${defs}<ellipse cx="32" cy="79" rx="22" ry="2.2" fill="#000" opacity=".18"/><g>${idle}${hairBack}${body}<rect x="27" y="42" width="10" height="13" rx="4" fill="${sk}"/><rect x="27" y="42" width="10" height="5" fill="#000" opacity=".12"/>${ear}${jewel}<ellipse cx="32" cy="30" rx="13" ry="15" fill="${sk}"/><ellipse cx="32" cy="30" rx="13" ry="15" fill="url(#${id}f)"/>${hairFront}${brows}${eye(27)}${eye(37)}${lash}${nose}${cheeks}${mouth}</g></svg>`;
 }
-function roomSVG(av, lvl, hasHome, hr) {
+function roomSVG(av, lvl, hasHome, hr, hostel) {
   const night = hr < 6 || hr >= 19, sky = night ? '#0f1b3d' : '#7ec8f5', wall = night ? '#3a3350' : '#e9d8b4', floor = night ? '#4a3a2a' : '#b98a5a';
   let s = `<svg viewBox="0 0 320 190" xmlns="http://www.w3.org/2000/svg"><rect width="320" height="190" fill="${wall}"/><rect y="140" width="320" height="50" fill="${floor}"/>`;
   s += `<rect x="215" y="30" width="80" height="70" rx="4" fill="${sky}" stroke="#6b5233" stroke-width="5"/>${night ? '<circle cx="270" cy="52" r="9" fill="#f5f0c8"/><circle cx="232" cy="48" r="1.4" fill="#fff"/><circle cx="250" cy="82" r="1.4" fill="#fff"/>' : '<circle cx="272" cy="52" r="11" fill="#ffd54a"/>'}<path d="M255 30v70M215 65h80" stroke="#6b5233" stroke-width="3"/>`;
-  s += hasHome ? `<rect x="14" y="112" width="92" height="34" rx="5" fill="#5b7bd5"/><rect x="14" y="104" width="30" height="20" rx="6" fill="#f4f4f4"/><rect x="10" y="100" width="6" height="50" fill="#6b4a2a"/>` : `<rect x="14" y="132" width="92" height="14" rx="4" fill="#9aa5b1"/><text x="14" y="124" fill="#555" font-size="10">Shared room: no home yet</text>`;
+  if (hostel && !hasHome) s += `<rect x="12" y="104" width="100" height="44" rx="4" fill="#8b6b4a"/><rect x="16" y="108" width="92" height="24" rx="4" fill="#5b7bd5"/><rect x="18" y="110" width="26" height="14" rx="5" fill="#f4f4f4"/><rect x="230" y="108" width="62" height="30" rx="3" fill="#9a7b55"/><rect x="236" y="96" width="30" height="14" rx="2" fill="#2a2a2a"/><text x="14" y="98" fill="#555" font-size="10">Hostel room: bed ${hostel}</text>`;
+  else s += hasHome ? `<rect x="14" y="112" width="92" height="34" rx="5" fill="#5b7bd5"/><rect x="14" y="104" width="30" height="20" rx="6" fill="#f4f4f4"/><rect x="10" y="100" width="6" height="50" fill="#6b4a2a"/>` : `<rect x="14" y="132" width="92" height="14" rx="4" fill="#9aa5b1"/><text x="14" y="124" fill="#555" font-size="10">Sleeping on a mat: no home yet</text><text x="14" y="176" fill="#555" font-size="9">Rent a hostel bed or build a house</text>`;
   if (lvl >= 1) s += `<ellipse cx="160" cy="165" rx="60" ry="12" fill="#c0392b" opacity=".85"/><rect x="118" y="70" width="60" height="38" rx="3" fill="#111"/><rect x="122" y="74" width="52" height="30" fill="${night ? '#5fb0ff' : '#2a2a2a'}"/><rect x="140" y="108" width="16" height="30" fill="#6b4a2a"/>`;
   if (lvl >= 2) s += `<rect x="296" y="108" width="8" height="40" fill="#6b4a2a"/><path d="M290 108h20l-4-16h-12z" fill="#ffd54a"/><circle cx="196" cy="128" r="12" fill="#2e8b57"/><rect x="192" y="136" width="8" height="12" fill="#8b5a2b"/>`;
   return s + `<svg x="128" y="${lvl >= 1 ? 68 : 76}" width="62" height="78" viewBox="0 0 64 80">${avatarSVG(av).replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')}</svg></svg>`;
@@ -269,14 +271,23 @@ function morningShift() {   // on sign-in during a shift: open the workplace and
 function panelMe() {
   const ts = now(), hr = (new Date(ts).getUTCHours()), bg = R.BACKGROUNDS[me.bg || 'mid'] || R.BACKGROUNDS.mid, pr = projectDay(S, new Date(ts).getUTCDay());
   let lvl = 0, home = false; for (const k of (world.byOwner[me.id] || [])) { const g = world.grid[(k / N) | 0][k % N]; if (g === 'house') { home = true; lvl = Math.max(lvl, world.land[k].f || 0); } }
+  const bedK = R.bedAt(world, me.id), bedLabel = bedK === null ? 0 : (bedK % N) + ',' + ((bedK / N) | 0);
   const en = energyPct(ts), left = Math.max(0, ((me.fedUntil || 0) - ts) / 3600000), du = R.dumsorAt(ts), job = C0().job;
-  return `<div class="room">${roomSVG(me.av, lvl, home, hr)}</div>
+  return `<div class="room">${roomSVG(me.av, lvl, home, hr, bedLabel)}</div>
     <div class="bars">${bar('Energy (food)', en * 100, en > .35 ? '#22c55e' : en > .12 ? '#f59e0b' : '#ef4444', left >= 1 ? Math.floor(left) + 'h left' : 'Hungry: income halved')}
     ${bar('Cash', Math.min(100, model.money / 200), '#fbbf24', fmt(model.money))}
     ${bar('Power', du.on ? 40 : 100, du.on ? '#f87171' : '#60a5fa', du.on ? 'Dumsor: power cut' : 'On')}
-    ${bar('Home comfort', home ? 34 + lvl * 33 : 8, '#a78bfa', home ? (lvl ? 'Furnished level ' + lvl : 'Empty house') : 'No home')}</div>
+    ${bar('Home comfort', home ? 34 + lvl * 33 : bedK !== null ? 30 : 8, '#a78bfa', home ? (lvl ? 'Furnished level ' + lvl : 'Empty house') : bedK !== null ? 'Hostel bed' : 'No home')}</div>
     <div class="sum"><div><span>Born</span><b>${bg.name}</b></div><div><span>Net per day</span><b>${pr.net >= 0 ? '+' : '-'}${fmt(Math.abs(pr.net))}</b></div><div><span>Job</span><b>${job ? CATALOG[job.g].name : 'None'}</b></div></div>
-    <div class="row"><div class="nm"><b>${esc2(me.name)}</b><small>${bg.story}</small></div><button data-act="look">Change look</button></div>`;
+    <div class="row"><div class="nm"><b>${esc2(me.name)}</b><small>${bg.story}</small></div><button data-act="look">Change look</button></div>` + hostelList(bedK);
+}
+function hostelList(bedK) {
+  const rows = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (world.grid[y][x] === 'hostel' && world.land[y * N + x]) { const k = y * N + x; rows.push({ x, y, k, occ: R.bedOcc(world, k), L: world.land[k] }); }
+  rows.sort((a, b) => (b.k === bedK) - (a.k === bedK) || (a.occ >= R.BEDS) - (b.occ >= R.BEDS) || a.k - b.k);
+  let h = `<div class="tier">Hostels</div><div class="help">A bed costs ${fmt(R.BED_RENT)} a day, but shared meals save you ${fmt(R.BED_SAVE)} a day. Hostel owners earn that rent from every tenant.</div>`;
+  h += rows.slice(0, 20).map(r => { const mine = r.k === bedK, full = r.occ >= R.BEDS && !mine; return `<div class="row"><div class="nm"><b>Hostel<span class="chip" style="background:#cbd5e1">${r.x},${r.y}</span>${mine ? '<span class="chip" style="background:#22c55e">your room</span>' : ''}</b><small>${r.occ} of ${R.BEDS} beds taken · owner ${esc2(world.names[r.L.o] || 'City')}</small></div>
+    <button data-act="go" data-x="${r.x}" data-y="${r.y}">Show</button>${mine ? `<button data-act="bedLeave" data-x="${r.x}" data-y="${r.y}">Move out</button>` : `<button data-act="bedRent" data-x="${r.x}" data-y="${r.y}" ${full ? 'disabled' : ''}>${full ? 'Full' : 'Move in'}</button>`}</div>`; }).join('') || '<div class="help">No hostels yet. Build one in the Build tab (Essentials) and rent beds out to other players.</div>';
+  return h;
 }
 // ---------- character creator ----------
 const creatorEl = $('creator'); let draft = null;
@@ -371,6 +382,7 @@ panel.addEventListener('click', e => {
     const x = +b.dataset.x || 0, y = +b.dataset.y || 0; b.disabled = true;
     sendAct(x, y, a === 'quit' ? { k: 'job', mode: 'quit' } : { k: 'job', mode: 'apply' }).then(r => { toast(r.ok ? r.done : r.msg || 'Could not do that', r.ok ? 'ok' : undefined); afterChange(); });
   }
+  else if (a === 'bedRent' || a === 'bedLeave') { b.disabled = true; sendAct(+b.dataset.x, +b.dataset.y, { k: 'bed', mode: a === 'bedLeave' ? 'leave' : 'rent' }).then(r => { toast(r.ok ? r.done : r.msg || 'Could not do that', r.ok ? 'ok' : undefined); afterChange(); }); }
   else if (a === 'eat') sendAct(+b.dataset.x, +b.dataset.y, { k: 'eat' }).then(r => { toast(r.ok ? r.done : r.msg || 'Could not eat', r.ok ? 'ok' : undefined); afterChange(); });
   else if (a === 'hire') sendAct(+b.dataset.x, +b.dataset.y, { k: 'hire', n: +b.dataset.n }).then(r => { toast(r.ok ? r.done : r.msg, r.ok ? 'ok' : undefined); afterChange(); });
   else if (a === 'furnish') sendAct(+b.dataset.x, +b.dataset.y, { k: 'furnish' }).then(r => { toast(r.ok ? r.done : r.msg, r.ok ? 'ok' : undefined); afterChange(); });

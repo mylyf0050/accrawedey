@@ -7,16 +7,18 @@ One shared city, many players. The server owns all money, land and rules; browse
 
 * `shared/rules.js`  every game rule (prices, zones, income, rent/lease, crime). Used by the server as the authority and by the browser only to preview.
 * `server/server.js` WebSocket server: accounts (anonymous token), actions, per-minute payouts, lease/rent enforcement, police raids, JSON save file in `data/` (set `DATA_DIR`).
-* `client/`          the game screen. `python3 client/build.py` rebuilds `client/index.html` (the single file the server sends).
+* `client/`          the game screen. `npm run build` rebuilds `client/index.html` (the single file the server sends).
 
 Environment: `PORT` (default 3000), `DATA_DIR`, `CLIENT_FILE`.
 Delete `data/world.json` to reset the whole city.
+
+The server keeps `world.json` in `DATA_DIR` and writes the previous save to `world.json.bak` before replacing it. Keep both files on persistent storage and include them in regular backups. If the main save cannot be read, the server tries the backup before starting a new world.
 
 ## Accounts and limits
 Players sign up with a name and password (scrypt-hashed). Environment options: `MAX_PLAYERS` (5000), `MAX_CONN_IP` (6 sockets per IP), `SIGNUPS_PER_HOUR` (5 per IP), `TRUST_PROXY=1` when behind a host proxy (so limits use the real client IP).
 
 ## Jobs and living costs
-Everyone pays `LIVING` (GH₵50/day). Players without a job earn the odd-jobs wage (GH₵60/day). Workplaces have staff slots (`jobs` in the catalog) and a daily salary (`sal`), paid by the owner while the building is open. City-run workplaces give newcomers entry-level jobs. If an owner runs out of money, or the building is sold, lost or its road breaks, the staff lose the job.
+Everyone pays `LIVING` (GH₵20/day) for transport and utilities. Players without a job earn the odd-jobs wage (GH₵60/day). Workplaces have staff slots (`jobs` in the catalog) and a daily salary (`sal`), paid by the owner while the building is open. City-run workplaces give newcomers entry-level jobs. If an owner runs out of money, or the building is sold, lost or its road breaks, the staff lose the job.
 
 ## Accra flavour, dumsor, gifts
 New buildings: Chop Bar, Trotro Station (appended to the type list so older saved worlds still load). Dumsor: on about one evening in three the power is rationed 18:00 to midnight; shops, clubs, factories and other businesses earn 40% less (hospitals, police, prisons, airports and homes are exempt). Players can send each other GH₵10 to GH₵5,000 (accounts must be an hour old; env `GIFT_MIN_AGE_MS` overrides for tests).
@@ -41,3 +43,6 @@ Tap the 3D button (top bar) to switch the city to a Three.js 3D view; tap 2D to 
 
 ## Music
 Original tracks are synthesised live in the browser with WebAudio (no audio files). Ambient music plays by default (tap the music button in the top bar to mute). Players can tune in to a night club and pay GH₵50 to request one of 8 tracks; the club owner gets 70%. Requests only open when clubs are open (20:00 to 04:00 Ghana time). Server: `song` message, queue max 4 per club, 2 per player. Test-only env: `SONG_ANYTIME=1` ignores opening hours.
+
+## Hostels
+Players build a Hostel (Essentials, GH₵12,000) with 6 beds. Other players move in from the Me tab: GH₵20/day rent paid to the owner; shared meals save the tenant GH₵10/day. A bed only counts while the tile is still a hostel with a working road. Server stores `world.beds` (player id -> tile key).

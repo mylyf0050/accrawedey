@@ -2,7 +2,7 @@
 const OPEN = {};                                   // which building types are open right now (set each frame)
 const TEN = { own: '#fbbf24', rent: '#60a5fa', lease: '#c084fc' };
 const OTHER = '#f472b6', CITY = '#94a3b8', ZONECOL = { r: '#4ade80', c: '#60a5fa', i: '#f59e0b' };
-const GROUND = { cityhospital: '#d6dde6', citymarket: '#d8c59a', policehq: '#aab8cf', cityprison: '#9a9ea4', police: '#aab8cf', prison: '#9a9ea4', den: '#5b4f60', townhall: '#cfd0bd', hospital: '#d6dde6', market: '#d8c59a', house: '#8cc275', shop: '#b3bcc6', park: '#5fa85d', school: '#c9d2a8', church: '#a7d092', factory: '#a9aaa4', club: '#8a86a6', airport: '#5d6570', chopbar: '#c9b48a', trotro: '#6b7280' };
+const GROUND = { hostel: '#b9c7dc', cityhospital: '#d6dde6', citymarket: '#d8c59a', policehq: '#aab8cf', cityprison: '#9a9ea4', police: '#aab8cf', prison: '#9a9ea4', den: '#5b4f60', townhall: '#cfd0bd', hospital: '#d6dde6', market: '#d8c59a', house: '#b8a77e', shop: '#aaa18e', park: '#5f8e5c', school: '#c9d2a8', church: '#a7d092', factory: '#a9aaa4', club: '#8a86a6', airport: '#5d6570', chopbar: '#c9b48a', trotro: '#6b7280' };
 
 function plotBorder(sx, sy, col, fill) {
   const z = cam.z, hw = TW / 2 * z * 0.93, hh = TH / 2 * z * 0.93, cx = sx, cy = sy + TH / 2 * z;
@@ -241,6 +241,17 @@ function drawTrotro(sx, sy, h, k, t) {
   pole(cx, cy + hh * 0.35);
   nightLights(OPEN.trotro, k, [[cx, cy - 10 * z, 46 * z]]);
 }
+function drawHostel(sx, sy, h, k) {
+  const z = cam.z, s = 0.86, hw = TW / 2 * z * s, hh = TH / 2 * z * s, cx = sx, cy = sy + TH / 2 * z, Hz = 34 * z * k;
+  walls(cx, cy, hw, hh, Hz, '#8fb3de');
+  if (k > 0.5) {
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 3; i++) { const v0 = 0.12 + r * 0.44, u0 = 0.1 + i * 0.29; leftQuad(cx, cy, hw, hh, Hz, u0, u0 + 0.17, v0 + 0.02, v0 + 0.3, WINDOW); }
+    for (let i = 0; i < 2; i++) rightQuad(cx, cy, hw, hh, Hz, 0.12 + i * 0.34, 0.12 + i * 0.34 + 0.2, 0.55, 0.82, WINDOW);
+    rightQuad(cx, cy, hw, hh, Hz, 0.7, 0.9, 0, 0.42, '#334155'); rightQuad(cx, cy, hw, hh, Hz, 0.12, 0.5, 0.06, 0.28, '#fde047');
+  }
+  topFace(cx, cy, hw, hh, Hz, '#4f6a94');
+  nightLights(true, k, [[cx, cy - Hz * 0.55, 40 * z]]);
+}
 const DRAW = {
   cityhospital: drawHospital, citymarket: drawMarket, policehq: drawPolice, cityprison: drawPrison,
   police: drawPolice, prison: drawPrison, den: drawDen, hospital: drawHospital, market: drawMarket,
@@ -249,6 +260,56 @@ const DRAW = {
   shop: (sx, sy, h, k) => drawShop(sx, sy, h, k),
   park: (sx, sy, h) => drawPark(sx, sy, h),
   school: drawSchool, church: drawChurch, factory: drawFactory, club: drawClub, airport: drawAirport,
-  chopbar: drawChopBar, trotro: drawTrotro
+  chopbar: drawChopBar, trotro: drawTrotro, hostel: drawHostel
 };
-const SHADOW = { cityhospital: [38, 0.86], citymarket: [14, 0.9], policehq: [30, 0.8], cityprison: [26, 0.9], police: [30, 0.8], prison: [26, 0.9], den: [24, 0.74], hospital: [38, 0.86], market: [14, 0.9], townhall: [30, 0.9], hospital: [38, 0.86], market: [14, 0.9], house: [28, 0.72], shop: [40, 0.82], school: [34, 0.84], church: [30, 0.72], factory: [30, 0.9], club: [34, 0.8], airport: [40, 0.5], chopbar: [30, 0.76], trotro: [34, 0.8] };
+const SHADOW = { hostel: [30, 0.86], cityhospital: [38, 0.86], citymarket: [14, 0.9], policehq: [30, 0.8], cityprison: [26, 0.9], police: [30, 0.8], prison: [26, 0.9], den: [24, 0.74], hospital: [38, 0.86], market: [14, 0.9], townhall: [30, 0.9], hospital: [38, 0.86], market: [14, 0.9], house: [28, 0.72], shop: [40, 0.82], school: [34, 0.84], church: [30, 0.72], factory: [30, 0.9], club: [34, 0.8], airport: [40, 0.5], chopbar: [30, 0.76], trotro: [34, 0.8] };
+
+// Accra's streets are full of low-rise plaster homes, flat roofs, shade awnings and rooftop tanks.
+function drawAccraHouse(sx, sy, h, k, t) {
+  const z = cam.z, v = h % 4, hw = TW * z * 0.36, hh = TH * z * 0.36, cx = sx, cy = sy + TH * z / 2, H = (24 + (h >> 3) % 2 * 5) * z * k;
+  const wall = ['#d8c5a3', '#d7b6a4', '#d6cfb9', '#cdbca2'][v], roof = ['#8a8578', '#9a8a73', '#817b70', '#91816e'][v];
+  diamond(sx, sy, '#91b879', 1.02); walls(cx, cy, hw, hh, H, wall); topFace(cx, cy, hw, hh, H, roof);
+  if (k > 0.45) {
+    for (let i = 0; i < 2; i++) leftQuad(cx, cy, hw, hh, H, .18 + i * .38, .36 + i * .38, .35, .66, '#8bb6b9');
+    for (let i = 0; i < 4; i++) leftQuad(cx, cy, hw, hh, H, .22 + i * .16, .235 + i * .16, .32, .7, '#766e61');
+    rightQuad(cx, cy, hw, hh, H, .58, .82, 0, .58, '#75513c');
+    rightQuad(cx, cy, hw, hh, H, .1, .9, .9, 1, '#ddd1b9');
+    // Shallow front veranda and its two square columns.
+    box(cx + hw * .48, cy - H + 3 * z, 9, '#b99058', .44);
+    box(cx + hw * .25, cy - H + 15 * z, 17, '#d7cdb9', .10);
+    box(cx + hw * .72, cy - H + 15 * z, 17, '#d7cdb9', .10);
+    if (h % 3 === 0) { box(cx - hw * .5, cy - H - 12 * z, 13, '#526f7a', .18); box(cx - hw * .5, cy - H - 18 * z, 3, '#87979a', .18); }
+  }
+  nightLights(true, k, [[cx - hw * .4, cy - H * .45, 30 * z]]);
+}
+function drawAccraShop(sx, sy, h, k, t) {
+  const z = cam.z, hw = TW * z * .39, hh = TH * z * .39, cx = sx, cy = sy + TH * z / 2, H = (30 + h % 3 * 3) * z * k;
+  const wall = ['#d6c5a7', '#d8b5a6', '#c6cbb5'][h % 3], sign = ['#9c483b', '#3d6579', '#8f7134'][h % 3];
+  diamond(sx, sy, '#aaa087', 1.02); walls(cx, cy, hw, hh, H, wall);
+  if (k > 0.45) {
+    rightQuad(cx, cy, hw, hh, H, .15, .82, .05, .62, '#514a40');
+    rightQuad(cx, cy, hw, hh, H, .2, .78, .12, .54, '#8a8172');
+    for (let i = 0; i < 5; i++) rightQuad(cx, cy, hw, hh, H, .21 + i * .115, .225 + i * .115, .08, .59, '#5d574d');
+    rightQuad(cx, cy, hw, hh, H, .05, .95, .68, .87, sign);
+    for (let i = 0; i < 5; i++) rightQuad(cx, cy, hw, hh, H, .08 + i * .17, .24 + i * .17, .9, .97, ['#a84d3e', '#c2933b', '#527358'][i % 3]);
+    for (let i = 0; i < 4; i++) leftQuad(cx, cy, hw, hh, H, .12 + i * .2, .25 + i * .2, .25, .55, '#91b9bd');
+  }
+  topFace(cx, cy, hw, hh, H, '#888175');
+  // Corrugated metal shade over the shopfront.
+  for (let i = 0; i < 5; i++) box(cx + (i - 2) * 4 * z, cy - H * .66, 4, i % 2 ? '#c2a06b' : '#a98555', .25);
+  nightLights(true, k, [[cx, cy - H * .4, 36 * z]]);
+}
+DRAW.house = drawAccraHouse;
+DRAW.shop = drawAccraShop;
+
+function drawAccraTree(sx, sy, h, scale) {
+  const z = cam.z, s = scale * z, cx = sx + (((h >> 3) % 21) - 10) / 100 * TW * z, cy = sy + TH / 2 * z + (((h >> 7) % 13) - 6) / 100 * TH * z;
+  const sway = Math.sin(performance.now() / 1300 + h) * 0.7 * s;
+  ctx.fillStyle = 'rgba(35,45,30,.2)'; ctx.beginPath(); ctx.ellipse(cx + 5 * s, cy + s, 11 * s, 4 * s, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#74553b'; ctx.lineWidth = Math.max(1.4, 2.5 * s); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + sway * .4, cy - 14 * s); ctx.stroke();
+  const leaves = ['#36784b', '#468b55', '#588f51'];
+  [[-5, -17, 9], [4, -20, 10], [-1, -25, 7], [-10, -21, 6], [11, -18, 6]].forEach(([dx, dy, r], i) => {
+    ctx.fillStyle = leaves[(h + i) % leaves.length]; ctx.beginPath(); ctx.arc(cx + (dx + sway) * s, cy + dy * s, r * s, 0, Math.PI * 2); ctx.fill();
+  });
+}
+drawTree = drawAccraTree;

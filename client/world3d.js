@@ -16,7 +16,7 @@
   }
   const col = (c, k) => new T.Color(c).multiplyScalar(k || 1);
   function init() {
-    BOX = new T.BoxGeometry(1, 1, 1); CYL = new T.CylinderGeometry(0.5, 0.5, 1, 10); PYR = new T.ConeGeometry(0.7071, 1, 4); CONE = new T.ConeGeometry(0.5, 1, 7); DOME = new T.SphereGeometry(0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    BOX = new T.BoxGeometry(1, 1, 1); CYL = new T.CylinderGeometry(0.5, 0.5, 1, 10); PYR = new T.ConeGeometry(0.7071, 1, 4); CONE = new T.ConeGeometry(0.5, 1, 7); DOME = new T.SphereGeometry(0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2); LEAF = new T.SphereGeometry(0.5, 10, 8);
     ren = new T.WebGLRenderer({ canvas: cv, antialias: true }); ren.setPixelRatio(Math.min(2, devicePixelRatio || 1)); ren.shadowMap.enabled = true; ren.shadowMap.type = T.PCFSoftShadowMap;
     scene = new T.Scene(); cam3 = new T.PerspectiveCamera(50, 1, 0.1, 200);
     amb = new T.HemisphereLight(0xffffff, 0x556655, 0.9); scene.add(amb);
@@ -41,44 +41,38 @@
   }
   function makeHero(av) {
     av = Object.assign({ g: 0, s: 2, h: 0, c: 0, o: 1 }, av || {}); const g = new T.Group(), L = c => new T.MeshLambertMaterial({ color: c }), f = av.g === 1;
-    const sk = L(SKIN[av.s]), skD = L(new T.Color(SKIN[av.s]).multiplyScalar(0.78)), hc = L(HAIRC[av.c]), oc = L(OUTC[av.o]), pants = L(f ? '#7c2d5a' : '#1f2a44'), shoe = L('#111827');
+    const sk = L(SKIN[av.s]), hc = L(HAIRC[av.c]), oc = L(OUTC[av.o]), pants = L(f ? '#57434a' : '#35404a'), shoe = L('#292725');
     const add = (geo, m, x, y, z, par) => { const o = new T.Mesh(geo, m); o.position.set(x, y, z); (par || g).add(o); return o; };
-    const sph = (r, ws, hs) => new T.SphereGeometry(r, ws || 14, hs || 10), cy = (r1, r2, h, n) => new T.CylinderGeometry(r1, r2, h, n || 12);
-    // legs pivot at the hip and swing when walking
-    const legs = [-0.075, 0.075].map(x => { const l = new T.Group(); l.position.set(x, 0.34, 0); g.add(l); add(cy(0.06, 0.055, 0.3), f ? sk : pants, 0, -0.15, 0, l); add(new T.BoxGeometry(0.13, 0.06, 0.19), shoe, 0, -0.31, 0.025, l); return l; });
-    // torso: shirt and trousers for him, fitted top and skirt for her
-    if (f) { add(cy(0.12, 0.15, 0.26), oc, 0, 0.5, 0); add(new T.ConeGeometry(0.27, 0.3, 16, 1, true), oc, 0, 0.36, 0).material.side = T.DoubleSide; add(cy(0.15, 0.15, 0.03), L('#fde68a'), 0, 0.4, 0); }
-    else { add(cy(0.15, 0.17, 0.3), oc, 0, 0.5, 0); add(cy(0.17, 0.17, 0.06), pants, 0, 0.35, 0); add(new T.BoxGeometry(0.1, 0.07, 0.02), L('#e5e7eb'), 0, 0.62, 0.15); }
-    // arms: sleeve + forearm + hand, pivot at the shoulder
-    const arms = [-1, 1].map(sd => { const a = new T.Group(); a.position.set(sd * (f ? 0.17 : 0.21), 0.63, 0); g.add(a); add(cy(0.055, 0.05, 0.15), oc, 0, -0.07, 0, a); add(cy(0.04, 0.035, 0.17), sk, 0, -0.22, 0, a); add(sph(0.045), sk, 0, -0.32, 0, a); return a; });
-    add(cy(0.055, 0.06, 0.08), skD, 0, 0.69, 0);
-    // head: big and friendly so the face reads from the game camera
-    const head = add(sph(0.21, 18, 14), sk, 0, 0.9, 0); head.scale.set(1, 1.06, 1);
-    [-0.2, 0.2].forEach(x => add(sph(0.045, 8, 6), sk, x, 0.9, 0));
-    const white = L('#ffffff'), pupil = new T.MeshBasicMaterial({ color: 0x1b1008 });
-    [-0.075, 0.075].forEach(x => { const e = add(sph(0.045, 10, 8), white, x, 0.915, 0.178); e.scale.z = 0.5; add(sph(0.026, 8, 6), pupil, x, 0.915, 0.203); add(sph(0.009, 6, 4), new T.MeshBasicMaterial({ color: 0xffffff }), x + 0.01, 0.924, 0.226);
-      add(new T.BoxGeometry(0.085, f ? 0.014 : 0.02, 0.02), hc, x, 0.975, 0.185).rotation.z = x < 0 ? -0.1 : 0.1; if (f) add(new T.BoxGeometry(0.06, 0.012, 0.015), pupil, x, 0.945, 0.2); });
-    add(sph(0.032, 8, 6), skD, 0, 0.875, 0.205).scale.set(1, 0.85, 0.9);
-    const mouth = add(new T.BoxGeometry(f ? 0.08 : 0.07, f ? 0.02 : 0.014, 0.012), L(f ? '#c2414d' : '#7a2e2e'), 0, 0.82, 0.196); mouth.rotation.x = -0.15;
-    if (f) { [-0.205, 0.205].forEach(x => add(sph(0.014, 6, 4), L('#fbbf24'), x, 0.84, 0)); }
-    // hair
-    const cap = (r, ry) => { const m = add(sph(r, 18, 12), hc, 0, ry, -0.012); m.geometry = new T.SphereGeometry(r, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.56); m.rotation.x = -0.32; return m; };
-    if (av.h === 0) cap(0.225, 0.91);
-    else if (av.h === 1) { const m = add(new T.SphereGeometry(0.31, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.64), hc, 0, 0.93, -0.11); m.rotation.x = -0.75; }
-    else if (av.h === 2) { cap(0.228, 0.91); for (let i = 0; i < 9; i++) { const a = -2.6 + i * 0.65, x = Math.sin(a) * 0.2, z = Math.cos(a) * 0.2 - 0.02; if (z > 0.12) continue; const br = add(cy(0.022, 0.016, 0.42, 6), hc, x, 0.7, z); br.rotation.z = -x * 0.4; add(sph(0.026, 6, 4), L('#fbbf24'), x * 1.05, 0.5, z); } }
-    else if (av.h === 3) { cap(0.228, 0.91); add(sph(0.1, 10, 8), hc, 0, 1.14, -0.1); add(cy(0.11, 0.11, 0.02, 12), L('#a855f7'), 0, 1.08, -0.1); }
-    g.traverse(m => { m.castShadow = true; }); g.scale.setScalar(1.35);
-    const sh = new T.Mesh(new T.CircleGeometry(0.28, 16), new T.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.22 })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.012; g.add(sh);
+    const sph = (r, ws, hs) => new T.SphereGeometry(r, ws || 16, hs || 12), cy = (r1, r2, h, n) => new T.CylinderGeometry(r1, r2, h, n || 12);
+    // Smaller head and softer features keep the silhouette closer to an adult person.
+    const legs = [-0.075, 0.075].map(x => { const l = new T.Group(); l.position.set(x, 0.47, 0); g.add(l); add(cy(0.052, 0.065, 0.36, 10), f ? sk : pants, 0, -0.18, 0, l); add(new T.BoxGeometry(0.105, 0.055, 0.16), shoe, 0, -0.37, 0.025, l); return l; });
+    if (f) { add(new T.CapsuleGeometry(0.13, 0.28, 4, 10), oc, 0, 0.79, 0); add(cy(0.14, 0.2, 0.25, 12), oc, 0, 0.54, 0); }
+    else { add(new T.CapsuleGeometry(0.15, 0.31, 4, 10), oc, 0, 0.79, 0); add(cy(0.15, 0.16, 0.07, 12), pants, 0, 0.53, 0); }
+    const arms = [-1, 1].map(sd => { const a = new T.Group(); a.position.set(sd * 0.17, 0.96, 0); g.add(a); add(cy(0.047, 0.052, 0.23, 10), oc, 0, -0.12, 0, a); add(cy(0.034, 0.04, 0.23, 10), sk, 0, -0.34, 0, a); add(sph(0.033), sk, 0, -0.47, 0, a); return a; });
+    add(cy(0.045, 0.05, 0.08, 10), sk, 0, 1.04, 0);
+    add(sph(0.14, 20, 16), sk, 0, 1.18, 0);
+    const eye = L('#251c17');
+    [-0.048, 0.048].forEach(x => { add(sph(0.014, 10, 8), eye, x, 1.195, 0.129); add(new T.BoxGeometry(0.034, 0.006, 0.006), hc, x, 1.222, 0.128); });
+    add(sph(0.018, 10, 8), sk, 0, 1.155, 0.137);
+    add(new T.BoxGeometry(0.035, 0.006, 0.006), L('#59342e'), 0, 1.112, 0.132);
+    const cap = (r, yy) => add(new T.SphereGeometry(r, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.54), hc, 0, yy, -0.015);
+    if (av.h === 0) cap(0.146, 1.22);
+    else if (av.h === 1) cap(0.18, 1.23);
+    else if (av.h === 2) { cap(0.148, 1.22); for (let i = 0; i < 6; i++) { const x = (i - 2.5) * 0.045; const br = add(cy(0.018, 0.013, 0.36, 7), hc, x, 0.91, -0.045); br.rotation.z = -x * 0.35; } }
+    else if (av.h === 3) { cap(0.148, 1.22); add(sph(0.064, 12, 10), hc, 0, 1.36, -0.06); }
+    g.traverse(m => { m.castShadow = true; }); g.scale.setScalar(0.8);
+    const sh = new T.Mesh(new T.CircleGeometry(0.2, 16), new T.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.18 })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.012; g.add(sh);
     return { g, legs, arms, key: JSON.stringify(av) };
   }
   // ---- merged low-poly model builder: one mesh per material, so hundreds of buildings stay fast ----
-  function G() { return { s: [], w: [] }; }                        // s = solid parts, w = glowing parts (windows, lamps, neon)
+  function G() { return { s: [], w: [], labels: [] }; }            // s = solid parts, w = glowing parts (windows, lamps, neon)
+  function addLabel(g, text, x, y, z, width, bg) { g.labels.push({ text, x, y, z, width, bg }); }
   function part(list, geo, x, y, z, color, ry, sx, sy, sz) {
     const g = geo.index ? geo.toNonIndexed() : geo.clone(), m = new T.Matrix4().compose(new T.Vector3(x, y, z), new T.Quaternion().setFromEuler(new T.Euler(0, ry || 0, 0)), new T.Vector3(sx || 1, sy || 1, sz || 1));
     g.applyMatrix4(m); const c = new T.Color(color), n = g.attributes.position.count, cols = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) { cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b; } g.setAttribute('color', new T.BufferAttribute(cols, 3)); list.push(g);
   }
-  let BOX, CYL, PYR, CONE, DOME;
+  let BOX, CYL, PYR, CONE, DOME, LEAF;
   const box = (L, x, y, z, w, h, d, c, ry) => part(L, BOX, x, y + h / 2, z, c, ry, w, h, d);          // y = bottom
   const roof = (L, x, y, z, w, h, d, c) => part(L, PYR, x, y + h / 2, z, c, Math.PI / 4, w, h, d);    // pyramid roof, base w x d
   const cyl = (L, x, y, z, w, h, c) => part(L, CYL, x, y + h / 2, z, c, 0, w, h, w);
@@ -91,33 +85,69 @@
   }
   function building(g, t, x, y, hash) {
     const cx = x + 0.5, cz = y + 0.5, v = hash % 4, wall = ['#f0d9b5', '#e8c39e', '#f5e6c8', '#d9b99b'][v], tint = ['#b45309', '#9a3412', '#7c2d12', '#b91c1c'][v];
-    if (t === 'house') { const h = 0.5 + (hash % 3) * 0.12; box(g.s, cx, 0.08, cz, 0.7, h, 0.62, wall); roof(g.s, cx, 0.08 + h, cz, 0.86, 0.34, 0.76, tint); box(g.s, cx - 0.2, 0.08, cz + 0.32, 0.14, 0.28, 0.02, '#5b3a1e'); windows(g, cx + 0.06, 0.08, cz, 0.5, h, 0.62, 1, 2); }
-    else if (t === 'shop') { box(g.s, cx, 0.08, cz, 0.8, 0.62, 0.7, '#dbeafe'); box(g.s, cx, 0.7, cz, 0.84, 0.05, 0.74, '#1d4ed8'); box(g.s, cx, 0.42, cz + 0.42, 0.8, 0.07, 0.2, '#ef4444'); box(g.s, cx, 0.58, cz + 0.36, 0.5, 0.1, 0.03, '#fde047'); windows(g, cx, 0.1, cz, 0.7, 0.34, 0.7, 1, 3, '#bfe8ff'); }
+    if (t === 'house') {
+      const floors = hash % 4 === 0 ? 2 : 1, h = floors === 2 ? 0.84 : 0.52 + (hash % 3) * 0.035, plaster = ['#d7c3a1', '#d9b6a5', '#d5cbb5', '#c8bca3'][v];
+      box(g.s, cx, 0.08, cz, 0.78, h, 0.68, plaster); box(g.s, cx, 0.08 + h, cz, 0.84, 0.07, 0.74, '#9b9282');
+      box(g.s, cx, 0.08 + h + 0.07, cz - 0.31, 0.84, 0.08, 0.08, '#ded2bc'); box(g.s, cx, 0.08 + h + 0.07, cz + 0.31, 0.84, 0.08, 0.08, '#ded2bc');
+      windows(g, cx, 0.12, cz, 0.72, h - 0.08, 0.68, floors, 2, '#8bb8c2');
+      box(g.s, cx + 0.22, 0.08, cz + 0.351, 0.14, 0.31, 0.025, '#76503d'); box(g.s, cx + 0.22, 0.08, cz + 0.37, 0.19, 0.045, 0.12, '#b9aa93');
+      for (let i = 0; i < 4; i++) box(g.s, cx - 0.22 + i * 0.15, 0.16, cz + 0.355, 0.014, 0.27, 0.014, '#72665a');
+      box(g.s, cx - 0.03, 0.08 + h - 0.11, cz + 0.39, 0.42, 0.06, 0.18, ['#9f5747', '#ac8040', '#547565'][hash % 3]);
+      if (hash % 3 === 0) { cyl(g.s, cx - 0.22, 0.08 + h + 0.15, cz - 0.16, 0.23, 0.25, '#536d79'); cyl(g.s, cx - 0.22, 0.08 + h + 0.28, cz - 0.16, 0.19, 0.025, '#758b91'); }
+    }
+    else if (t === 'shop') {
+      const paint = ['#d8c7a6', '#d5b1a4', '#c8d0bd', '#d8c7b8'][v];
+      box(g.s, cx, 0.08, cz, 0.82, 0.58, 0.7, paint); box(g.s, cx, 0.66, cz, 0.86, 0.08, 0.74, '#77756e');
+      box(g.s, cx, 0.45, cz + 0.358, 0.66, 0.25, 0.025, '#514b43'); box(g.s, cx, 0.45, cz + 0.376, 0.6, 0.19, 0.015, '#756f64');
+      box(g.s, cx, 0.72, cz + 0.382, 0.78, 0.12, 0.04, ['#9f4637', '#39627a', '#8b6b2d', '#40624c'][v]);
+      for (let i = 0; i < 6; i++) box(g.s, cx - 0.32 + i * 0.128, 0.62, cz + 0.42, 0.11, 0.06, 0.12, i % 2 ? '#d7c2a0' : '#c3aa83');
+      for (let i = 0; i < 5; i++) box(g.s, cx - 0.34 + i * 0.17, 0.75, cz + 0.36, 0.12, 0.035, 0.18, ['#ad493a', '#c28d37', '#4d7357'][i % 3]);
+      for (let i = 0; i < 6; i++) box(g.s, cx - 0.34 + i * 0.135, 0.12, cz + 0.36, 0.012, 0.21, 0.018, '#796d5d');
+      addLabel(g, ['MOBILE MONEY', 'COLD DRINKS', 'PROVISIONS'][v % 3], cx, 0.74, cz + 0.402, 0.68, ['#9c483b', '#3d6579', '#8f7134'][v]);
+    }
     else if (t === 'club') { box(g.s, cx, 0.08, cz, 0.8, 0.9, 0.74, '#312e81'); box(g.w, cx, 0.98, cz, 0.84, 0.05, 0.78, '#e879f9'); box(g.w, cx, 0.55, cz + 0.38, 0.5, 0.12, 0.03, '#22d3ee'); windows(g, cx, 0.25, cz, 0.7, 0.5, 0.74, 1, 3, '#c084fc'); }
     else if (t === 'church') { box(g.s, cx, 0.08, cz + 0.08, 0.7, 0.5, 0.72, '#f8fafc'); roof(g.s, cx, 0.58, cz + 0.08, 0.84, 0.28, 0.84, '#64748b'); box(g.s, cx, 0.08, cz - 0.28, 0.24, 1.2, 0.24, '#f8fafc'); roof(g.s, cx, 1.28, cz - 0.28, 0.32, 0.3, 0.32, '#475569'); box(g.s, cx, 1.58, cz - 0.28, 0.04, 0.2, 0.04, '#facc15'); box(g.s, cx, 1.66, cz - 0.28, 0.14, 0.04, 0.04, '#facc15'); windows(g, cx, 0.12, cz + 0.08, 0.6, 0.4, 0.72, 1, 3, '#93c5fd'); }
     else if (t === 'school') { box(g.s, cx, 0.08, cz, 0.92, 0.5, 0.58, '#fde68a'); box(g.s, cx, 0.58, cz, 0.96, 0.05, 0.62, '#b45309'); cyl(g.s, cx + 0.38, 0.08, cz + 0.36, 0.03, 0.9, '#94a3b8'); box(g.s, cx + 0.46, 0.8, cz + 0.36, 0.14, 0.1, 0.02, '#16a34a'); windows(g, cx, 0.1, cz, 0.84, 0.42, 0.58, 1, 4); }
     else if (t === 'hospital' || t === 'cityhospital') { box(g.s, cx, 0.08, cz, 0.84, 1.0, 0.7, '#f8fafc'); box(g.s, cx, 0.5, cz + 0.36, 0.26, 0.07, 0.02, '#dc2626'); box(g.s, cx, 0.5, cz + 0.36, 0.07, 0.26, 0.02, '#dc2626'); windows(g, cx, 0.1, cz, 0.74, 0.9, 0.7, 3, 3, '#bfe8ff'); }
     else if (t === 'factory') { box(g.s, cx - 0.05, 0.08, cz + 0.1, 0.84, 0.55, 0.6, '#9ca3af'); box(g.s, cx - 0.05, 0.63, cz + 0.1, 0.88, 0.05, 0.64, '#4b5563'); cyl(g.s, cx - 0.28, 0.08, cz - 0.28, 0.16, 1.1, '#78716c'); cyl(g.s, cx + 0.12, 0.08, cz - 0.28, 0.16, 0.9, '#78716c'); box(g.w, cx - 0.28, 1.15, cz - 0.28, 0.1, 0.03, 0.1, '#f97316'); windows(g, cx - 0.05, 0.2, cz + 0.1, 0.7, 0.25, 0.6, 1, 3, '#fcd34d'); }
     else if (t === 'airport') { box(g.s, cx, 0.08, cz, 0.98, 0.04, 0.98, '#4b5563'); for (let i = 0; i < 4; i++) box(g.s, cx, 0.125, cz - 0.36 + i * 0.24, 0.08, 0.01, 0.12, '#f8fafc'); box(g.s, cx - 0.3, 0.08, cz - 0.3, 0.3, 0.35, 0.3, '#e5e7eb'); cyl(g.s, cx - 0.3, 0.43, cz - 0.3, 0.12, 0.3, '#94a3b8'); box(g.w, cx - 0.3, 0.7, cz - 0.3, 0.2, 0.05, 0.2, '#38bdf8'); }
-    else if (t === 'market' || t === 'citymarket') { for (const [dx, dz, c] of [[-0.24, -0.22, '#ef4444'], [0.24, -0.22, '#22c55e'], [-0.24, 0.24, '#f59e0b'], [0.24, 0.24, '#3b82f6']]) { box(g.s, cx + dx, 0.08, cz + dz, 0.38, 0.22, 0.34, '#a16207'); box(g.s, cx + dx, 0.34, cz + dz, 0.46, 0.05, 0.42, c); } }
+    else if (t === 'market' || t === 'citymarket') { for (const [dx, dz, c] of [[-0.24, -0.22, '#a94f3b'], [0.24, -0.22, '#4b7558'], [-0.24, 0.24, '#c2923a'], [0.24, 0.24, '#42677f']]) { box(g.s, cx + dx, 0.08, cz + dz, 0.32, 0.2, 0.3, '#876d4d'); for (const sx of [-0.13, 0.13]) for (const sz of [-0.12, 0.12]) box(g.s, cx + dx + sx, 0.28, cz + dz + sz, 0.025, 0.3, 0.025, '#88765e'); box(g.s, cx + dx, 0.44, cz + dz, 0.38, 0.035, 0.36, c); box(g.s, cx + dx, 0.25, cz + dz + 0.17, 0.3, 0.045, 0.025, '#c49a5c'); } }
     else if (t === 'townhall') { box(g.s, cx, 0.08, cz, 0.9, 0.7, 0.7, '#e2e8f0'); for (let i = 0; i < 4; i++) cyl(g.s, cx - 0.33 + i * 0.22, 0.08, cz + 0.4, 0.07, 0.7, '#f8fafc'); box(g.s, cx, 0.78, cz + 0.05, 1.0, 0.07, 0.86, '#94a3b8'); part(g.s, DOME, cx, 0.85, cz, '#cbd5e1', 0, 0.5, 0.9, 0.5); windows(g, cx, 0.12, cz, 0.8, 0.5, 0.7, 1, 4); }
     else if (t === 'police' || t === 'policehq') { box(g.s, cx, 0.08, cz, 0.8, 0.75, 0.66, '#475569'); box(g.s, cx, 0.83, cz, 0.84, 0.05, 0.7, '#1e293b'); box(g.w, cx, 0.4, cz + 0.34, 0.3, 0.1, 0.03, '#60a5fa'); box(g.w, cx + 0.3, 0.9, cz, 0.1, 0.07, 0.1, '#ef4444'); windows(g, cx, 0.12, cz, 0.7, 0.55, 0.66, 2, 3, '#bfe8ff'); }
     else if (t === 'prison' || t === 'cityprison') { box(g.s, cx, 0.08, cz, 0.96, 0.3, 0.96, '#6b7280'); box(g.s, cx, 0.38, cz, 0.6, 0.55, 0.6, '#4b5563'); for (const [dx, dz] of [[-0.44, -0.44], [0.44, -0.44], [-0.44, 0.44], [0.44, 0.44]]) box(g.s, cx + dx, 0.08, cz + dz, 0.1, 0.5, 0.1, '#374151'); windows(g, cx, 0.45, cz, 0.5, 0.38, 0.6, 1, 3, '#fcd34d'); }
-    else if (t === 'chopbar') { box(g.s, cx, 0.08, cz, 0.66, 0.38, 0.6, '#fde68a'); roof(g.s, cx, 0.46, cz, 0.84, 0.28, 0.76, '#dc2626'); box(g.w, cx, 0.3, cz + 0.31, 0.4, 0.1, 0.02, '#fb923c'); for (const dx of [-0.25, 0.25]) cyl(g.s, cx + dx, 0.08, cz + 0.44, 0.14, 0.14, '#7c2d12'); }
-    else if (t === 'trotro') { box(g.s, cx, 0.16, cz, 0.7, 0.34, 0.34, '#facc15'); box(g.s, cx, 0.5, cz, 0.5, 0.14, 0.3, '#fef08a'); box(g.s, cx, 0.16, cz, 0.72, 0.05, 0.36, '#111827'); for (const dx of [-0.24, 0.24]) for (const dz of [-0.18, 0.18]) cyl(g.s, cx + dx, 0.09, cz + dz, 0.12, 0.05, '#111827'); }
+    else if (t === 'chopbar') {
+      box(g.s, cx, 0.08, cz, 0.72, 0.26, 0.54, '#c8b18b'); box(g.s, cx, 0.38, cz, 0.88, 0.06, 0.74, '#807666');
+      for (const dx of [-0.35, 0.35]) for (const dz of [-0.28, 0.28]) box(g.s, cx + dx, 0.08, cz + dz, 0.045, 0.62, 0.045, '#76664f');
+      box(g.s, cx, 0.72, cz, 0.98, 0.06, 0.84, '#77766d');
+      for (let i = 0; i < 8; i++) box(g.s, cx - 0.42 + i * 0.12, 0.76, cz + 0.38, 0.12, 0.035, 0.08, ['#a74d3c', '#c49743', '#4e7258'][i % 3]);
+      box(g.s, cx, 0.39, cz + 0.34, 0.62, 0.12, 0.08, '#986a48'); for (const dx of [-0.23, -0.06, 0.11]) cyl(g.s, cx + dx, 0.4, cz + 0.34, 0.12, 0.14, '#4b4136');
+      box(g.s, cx, 0.57, cz + 0.39, 0.68, 0.1, 0.03, '#8f4737'); box(g.s, cx, 0.32, cz + 0.42, 0.7, 0.04, 0.025, '#b28242');
+      addLabel(g, 'WAAKYE • BANKU', cx, 0.57, cz + 0.411, 0.66, '#8f4737');
+    }
+    else if (t === 'trotro') {
+      box(g.s, cx, 0.08, cz - 0.2, 0.82, 0.06, 0.46, '#8a867c');
+      for (const dx of [-0.38, 0.38]) for (const dz of [-0.34, 0.02]) box(g.s, cx + dx, 0.08, cz + dz, 0.035, 0.58, 0.035, '#7e786b');
+      box(g.s, cx, 0.64, cz - 0.16, 0.9, 0.07, 0.6, '#a9a18e'); box(g.s, cx, 0.7, cz + 0.22, 0.84, 0.11, 0.04, '#6b4f39');
+      box(g.s, cx, 0.77, cz + 0.25, 0.76, 0.1, 0.025, '#405b63');
+      const van = (x, z, body, stripe) => { box(g.s, x, 0.12, z, 0.4, 0.23, 0.25, body); box(g.s, x - 0.025, 0.34, z - 0.015, 0.32, 0.2, 0.23, '#b8d0d1'); box(g.s, x, 0.2, z + 0.13, 0.4, 0.045, 0.025, stripe); box(g.s, x, 0.085, z, 0.3, 0.045, 0.28, '#292a29'); for (const dx of [-0.13, 0.13]) cyl(g.s, x + dx, 0.08, z + 0.11, 0.075, 0.06, '#302e2c'); };
+      van(cx - 0.22, cz - 0.06, '#e6e0cf', '#c99a3e'); van(cx + 0.22, cz + 0.25, '#e4dfd0', '#4d6d72');
+      addLabel(g, 'MADINA • CIRCLE', cx, 0.78, cz + 0.277, 0.78, '#365c4b');
+    }
+    else if (t === 'hostel') { box(g.s, cx, 0.08, cz, 0.78, 1.0, 0.66, '#a9c4e8'); box(g.s, cx, 1.08, cz, 0.84, 0.05, 0.72, '#3f5b85'); windows(g, cx, 0.12, cz, 0.7, 0.9, 0.66, 3, 3, '#ffe9a8'); box(g.s, cx, 0.08, cz + 0.34, 0.16, 0.26, 0.02, '#334155'); box(g.w, cx, 0.5, cz + 0.345, 0.4, 0.08, 0.02, '#fde047'); }
     else if (t === 'den') { box(g.s, cx, 0.08, cz, 0.6, 0.4, 0.55, '#3b2f45'); roof(g.s, cx, 0.48, cz, 0.74, 0.22, 0.68, '#1f2937'); box(g.w, cx + 0.1, 0.25, cz + 0.29, 0.12, 0.14, 0.02, '#f87171'); }
     else if (t !== 'park') { box(g.s, cx, 0.08, cz, 0.72, 0.9, 0.72, '#e5e7eb'); windows(g, cx, 0.1, cz, 0.7, 0.8, 0.72, 3, 3); }
   }
-  function tree(g, x, z, k, hash) { const c = ['#2f7d3a', '#3b8f45', '#2a6f33'][hash % 3]; cyl(g.s, x, 0.08, z, 0.08, 0.22 * k, '#7c4a1e'); part(g.s, CONE, x, 0.08 + 0.22 * k + 0.2 * k, z, c, 0, 0.4 * k, 0.5 * k, 0.4 * k); part(g.s, CONE, x, 0.08 + 0.22 * k + 0.42 * k, z, c, 0, 0.3 * k, 0.4 * k, 0.3 * k); }
+  function tree(g, x, z, k, hash) { const c = ['#36784b', '#438457', '#527f49'][hash % 3]; cyl(g.s, x, 0.08, z, 0.09, 0.46 * k, '#76543b'); part(g.s, LEAF, x, 0.66 * k, z, c, 0, 0.48 * k, 0.39 * k, 0.48 * k); part(g.s, LEAF, x - 0.15 * k, 0.57 * k, z + 0.06 * k, c, 0, 0.3 * k, 0.3 * k, 0.34 * k); part(g.s, LEAF, x + 0.14 * k, 0.58 * k, z - 0.08 * k, c, 0, 0.32 * k, 0.31 * k, 0.33 * k); }
   function merge(list) {
     let n = 0; for (const g of list) n += g.attributes.position.count; if (!n) return null;
     const P = new Float32Array(n * 3), N3 = new Float32Array(n * 3), C = new Float32Array(n * 3); let o = 0;
     for (const g of list) { P.set(g.attributes.position.array, o * 3); N3.set(g.attributes.normal.array, o * 3); C.set(g.attributes.color.array, o * 3); o += g.attributes.position.count; g.dispose(); }
     const m = new T.BufferGeometry(); m.setAttribute('position', new T.BufferAttribute(P, 3)); m.setAttribute('normal', new T.BufferAttribute(N3, 3)); m.setAttribute('color', new T.BufferAttribute(C, 3)); return m;
   }
-  let solidMat, glowMat, roads = [];
+  let solidMat, glowMat, roads = [], signs = [];
   function rebuild() {
     for (const k in mesh) { scene.remove(mesh[k]); mesh[k].geometry.dispose(); } mesh = {}; roads = [];
+    for (const s of signs) { scene.remove(s); s.geometry.dispose(); s.material.map.dispose(); s.material.dispose(); } signs = [];
     const g = G(); if (!solidMat) { solidMat = new T.MeshLambertMaterial({ vertexColors: true }); glowMat = new T.MeshBasicMaterial({ vertexColors: true }); }
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const t = world.grid[y][x], h = ((x * 73856093) ^ (y * 19349663)) >>> 0;
@@ -129,7 +159,7 @@
         if (h % 6 === 0) { cyl(g.s, x + 0.08, 0.07, y + 0.08, 0.04, 0.5, '#94a3b8'); box(g.w, x + 0.08, 0.57, y + 0.08, 0.1, 0.05, 0.1, '#fde68a'); }
         continue;
       }
-      const base = t === 'empty' ? ['#6dbb6a', '#62b05f', '#76c474', '#68b566'][h & 3] : (GROUND[t] || '#9ca3af');
+      const base = t === 'empty' ? ['#c3ae7e', '#b8a372', '#c9b889', '#b5a174'][h & 3] : (GROUND[t] || '#9ca3af');
       box(g.s, x + 0.5, 0, y + 0.5, 1, 0.08, 1, base);
       if (t === 'empty' && h % 11 === 0) tree(g, x + 0.5, y + 0.5, 0.8 + (h % 5) * 0.1, h >> 3);
       else if (t === 'park') { tree(g, x + 0.28, y + 0.35, 1, h); tree(g, x + 0.72, y + 0.7, 0.85, h >> 2); box(g.s, x + 0.5, 0.08, y + 0.55, 0.3, 0.07, 0.08, '#78350f'); }
@@ -138,6 +168,12 @@
     const ms = merge(g.s), mw = merge(g.w);
     if (ms) { const m = new T.Mesh(ms, solidMat); m.castShadow = m.receiveShadow = true; scene.add(m); mesh.solid = m; }
     if (mw) { const m = new T.Mesh(mw, glowMat); scene.add(m); mesh.glow = m; }
+    for (const s of g.labels) {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 96; const x = c.getContext('2d');
+      x.fillStyle = s.bg; x.fillRect(0, 0, c.width, c.height); x.fillStyle = '#f4ead6'; x.font = '700 48px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(s.text, c.width / 2, c.height / 2, c.width - 18);
+      const tex = new T.CanvasTexture(c), mat = new T.MeshBasicMaterial({ map: tex, side: T.DoubleSide }), sign = new T.Mesh(new T.PlaneGeometry(s.width, 0.12), mat);
+      sign.position.set(s.x, s.y, s.z); scene.add(sign); signs.push(sign);
+    }
     spawnLife();
   }
   // ---- life: cars on the roads and people on the ground (visual only) ----
@@ -146,20 +182,23 @@
     for (const c of cars) scene.remove(c.g); for (const f of folks) scene.remove(f.g); cars = []; folks = [];
     const M = c => new T.MeshLambertMaterial({ color: c });
     if (roads.length > 2) for (let i = 0; i < Math.min(14, 2 + roads.length / 6 | 0); i++) {
-      const g = new T.Group(), col = ['#ef4444', '#3b82f6', '#f8fafc', '#facc15', '#22c55e', '#94a3b8'][i % 6];
-      const b = new T.Mesh(new T.BoxGeometry(0.34, 0.12, 0.2), M(col)); b.position.y = 0.17; const t = new T.Mesh(new T.BoxGeometry(0.18, 0.1, 0.17), M('#cbd5e1')); t.position.set(-0.02, 0.27, 0); g.add(b, t); b.castShadow = true;
+      const g = new T.Group(), col = ['#ba8a2d', '#3b6680', '#e6e0d2', '#b34a3c', '#58784f', '#68727a'][i % 6], van = i % 3 === 0;
+      const b = new T.Mesh(new T.BoxGeometry(van ? 0.48 : 0.4, 0.14, 0.24), M(col)); b.position.y = 0.19;
+      const cab = new T.Mesh(new T.BoxGeometry(van ? 0.28 : 0.24, van ? 0.18 : 0.14, 0.22), M('#7e999a')); cab.position.set(-0.015, 0.34, 0);
+      const wheels = [];
+      for (const x of [-0.15, 0.15]) for (const z of [-0.105, 0.105]) { const w = new T.Mesh(new T.CylinderGeometry(0.055, 0.055, 0.045, 10), M('#292a29')); w.rotation.z = Math.PI / 2; w.position.set(x, 0.1, z); wheels.push(w); }
+      const lamps = [-0.14, 0.14].map(x => { const l = new T.Mesh(new T.BoxGeometry(0.07, 0.035, 0.012), M('#f5e7bf')); l.position.set(x, 0.2, 0.126); return l; });
+      g.add(b, cab, ...wheels, ...lamps); g.traverse(m => { m.castShadow = true; });
       const r = roads[(Math.random() * roads.length) | 0]; g.position.set(r[0] + 0.5, 0.02, r[1] + 0.5); scene.add(g); cars.push({ g, x: r[0] + 0.5, z: r[1] + 0.5, tx: r[0], tz: r[1], px: -1, pz: -1, d: 0 });
     }
-    for (let i = 0; i < 18; i++) {
-      const o = makeNpc(), x = 2 + Math.random() * (N - 4), z = 2 + Math.random() * (N - 4); o.g.position.set(x, 0.08, z); scene.add(o.g); folks.push(Object.assign(o, { x, z, tx: x, tz: z, w: Math.random() * 6 }));
+    const footCells = [];
+    for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) if (world.grid[y][x] === 'empty') footCells.push([x, y]);
+    for (let i = 0; i < 18 && footCells.length; i++) {
+      const o = makeNpc(), cell = footCells[(Math.random() * footCells.length) | 0], x = cell[0] + 0.5, z = cell[1] + 0.5; o.g.position.set(x, 0.08, z); scene.add(o.g); folks.push(Object.assign(o, { x, z, tx: x, tz: z, w: Math.random() * 6 }));
     }
   }
   function makeNpc() {
-    const M = c => new T.MeshLambertMaterial({ color: c }), g = new T.Group(), sk = M(SKIN[(Math.random() * 6) | 0]), ou = M(OUTC[(Math.random() * 6) | 0]);
-    const b = new T.Mesh(new T.CapsuleGeometry(0.1, 0.2, 3, 8), ou); b.position.y = 0.38; const h = new T.Mesh(new T.SphereGeometry(0.1, 10, 8), sk); h.position.y = 0.66;
-    const hr = new T.Mesh(new T.SphereGeometry(0.105, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), M(HAIRC[(Math.random() * 6) | 0])); hr.position.y = 0.68;
-    const l1 = new T.Mesh(new T.CylinderGeometry(0.035, 0.035, 0.25, 6), M('#334155')), l2 = l1.clone(); l1.geometry.translate(0, -0.125, 0); l2.geometry = l1.geometry; l1.position.set(-0.05, 0.25, 0); l2.position.set(0.05, 0.25, 0);
-    g.add(b, h, hr, l1, l2); g.traverse(m => m.castShadow = true); return { g, l1, l2 };
+    return makeHero({ g: Math.random() < 0.5 ? 0 : 1, s: (Math.random() * 6) | 0, h: (Math.random() * 5) | 0, c: (Math.random() * 5) | 0, o: (Math.random() * 6) | 0 });
   }
   function stepLife(dt) {
     for (const c of cars) {
@@ -172,8 +211,13 @@
     }
     for (const f of folks) {
       const dx = f.tx - f.x, dz = f.tz - f.z, dd = Math.hypot(dx, dz);
-      if (dd < 0.1) { if (Math.random() < 0.02) { f.tx = Math.max(1, Math.min(N - 1, f.x + (Math.random() - 0.5) * 6)); f.tz = Math.max(1, Math.min(N - 1, f.z + (Math.random() - 0.5) * 6)); } f.l1.rotation.x = f.l2.rotation.x = 0; }
-      else { const st = Math.min(dd, 0.7 * dt); f.x += dx / dd * st; f.z += dz / dd * st; f.g.rotation.y = Math.atan2(dx, dz); f.w += dt * 9; f.l1.rotation.x = Math.sin(f.w) * 0.7; f.l2.rotation.x = -Math.sin(f.w) * 0.7; }
+      if (dd < 0.1) {
+        if (Math.random() < 0.035) {
+          const x = Math.floor(f.x), z = Math.floor(f.z), opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dz]) => world.grid[z + dz]?.[x + dx] === 'empty');
+          if (opts.length) { const [dx, dz] = opts[(Math.random() * opts.length) | 0]; f.tx = x + dx + 0.5; f.tz = z + dz + 0.5; }
+        }
+        f.legs.forEach(l => { l.rotation.x = 0; }); f.arms.forEach(a => { a.rotation.x = 0; });
+      } else { const st = Math.min(dd, 0.7 * dt); f.x += dx / dd * st; f.z += dz / dd * st; f.g.rotation.y = Math.atan2(dx, dz); f.w += dt * 7; const sw = Math.sin(f.w) * 0.38; f.legs[0].rotation.x = sw; f.legs[1].rotation.x = -sw; f.arms[0].rotation.x = -sw * 0.65; f.arms[1].rotation.x = sw * 0.65; }
       f.g.position.set(f.x, 0.08, f.z);
     }
   }

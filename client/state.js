@@ -59,7 +59,7 @@ function onMsg(m) {
     TYPES = m.world.types; world = R.makeWorld(); roadCount = 0;
     for (let i = 0; i < N * N; i++) { const g = TYPES[m.world.grid[i]] || 'empty'; world.grid[(i / N) | 0][i % N] = g; if (g === 'road') roadCount++; }
     world.land = {}; for (const k in m.world.land) world.land[k] = m.world.land[k];
-    world.cracked = m.world.cracked; world.names = m.world.names; world.jobs = m.world.jobs || {}; world.companies = m.world.companies || {}; world.cars = m.world.cars || {}; R.reindex(world); R.initCivic(world);
+    world.cracked = m.world.cracked; world.names = m.world.names; world.jobs = m.world.jobs || {}; world.companies = m.world.companies || {}; world.cars = m.world.cars || {}; world.beds = m.world.beds || {}; R.reindex(world); R.initCivic(world);
     me.bg = m.you.bg; me.av = m.you.av; Object.assign(me, { id: m.you.id, name: m.you.name, money: m.you.money, t: m.you.ts, born: m.you.born, jail: m.you.jail, fedUntil: m.you.fed });
     timeOff = m.now - Date.now(); dirty();
     if (m.token) store.set('cb-token', m.token); store.set('cb-name', m.you.name);
@@ -70,6 +70,7 @@ function onMsg(m) {
   else if (m.t === 'jobs') { for (const e of m.list) R.setJob(world, e.p, e.j); dirty(); handlers.changed && handlers.changed(); }
   else if (m.t === 'avatarRes') { if (m.ok) me.av = m.av; handlers.avatarRes && handlers.avatarRes(m); }
   else if (m.t === 'cars') { for (const e of m.list) { if (e.c) world.cars[e.p] = e.c; else delete world.cars[e.p]; } dirty(); handlers.changed && handlers.changed(); }
+  else if (m.t === 'beds') { for (const e of m.list) { if (e.k === null) delete world.beds[e.p]; else world.beds[e.p] = e.k; } dirty(); handlers.changed && handlers.changed(); }
   else if (m.t === 'company') { if (m.co) world.companies[m.id] = m.co; else delete world.companies[m.id]; dirty(); handlers.changed && handlers.changed(); }
   else if (m.t === 'election') { election = m; handlers.panel && handlers.panel(); }
   else if (m.t === 'ballot') { ballot = m.vote; handlers.panel && handlers.panel(); }

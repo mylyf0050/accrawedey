@@ -5,7 +5,7 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "build": "python3 client/build.py"
+    "build": "node client/build.js"
   },
   "keywords": [],
   "author": "",
